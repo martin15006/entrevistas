@@ -1,0 +1,263 @@
+/*
+  Estilos PROVISIONALES (RNF-12): el diseño definitivo se hace al final, con su propia identidad.
+  Primero celular (CL-07): todo funciona desde 360 px sin desplazarse de lado, y lo que se
+  toca mide al menos 44 px de alto. Los valores están en variables para cambiarlos fácil.
+*/
+
+:root {
+  --fondo: #f5f6f8;
+  --superficie: #ffffff;
+  --texto: #1c2228;
+  --texto-suave: #56616c;
+  --borde: #d4d9df;
+  --acento: #0b6466;
+  --acento-texto: #ffffff;
+  --peligro: #a8322a;
+  --exito: #1f7340;
+  --radio: 8px;
+  --espacio: 1rem;
+  --toque: 44px;
+
+  color: var(--texto);
+  background: var(--fondo);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-size: 1rem; /* 16 px: así el celular no hace zoom solo al tocar un campo */
+}
+
+/* Barra de arriba con el menú: en el celular el menú baja a otra línea y se reparte. */
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.25rem var(--espacio);
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  font-weight: 700;
+  color: var(--texto);
+  text-decoration: none;
+}
+
+.navegacion ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navegacion form {
+  margin: 0;
+}
+
+.navegacion a,
+.enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radio);
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.navegacion a[aria-current="page"] {
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.contenido {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--espacio);
+}
+
+h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--toque);
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.boton--secundario {
+  border-color: var(--borde);
+  background: var(--superficie);
+  color: var(--acento);
+}
+
+.boton--ancho {
+  width: 100%;
+}
+
+/* Formularios: una columna, campos grandes para el dedo. */
+.acceso {
+  max-width: 24rem;
+  margin: 1rem auto;
+}
+
+.formulario {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.campo {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.campo__nombre {
+  font-weight: 600;
+}
+
+.campo input {
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit; /* 16 px: el celular no hace zoom solo al tocar el campo */
+}
+
+.aviso {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+.aviso--error {
+  border-color: var(--peligro);
+  color: var(--peligro);
+}
+
+.aviso--exito {
+  border-color: var(--exito);
+  color: var(--exito);
+}
+
+/* Algo con el atributo hidden no se ve nunca, aunque su clase diga display:flex. */
+[hidden] {
+  display: none !important;
+}
+
+/* El selector de archivo, del mismo alto que lo demás que se toca. */
+.campo input[type="file"] {
+  padding: 0.5rem 0.75rem;
+}
+
+/* CL-07: las grillas y los campos se achican hasta el ancho del celular. Sin esto, el selector
+   de archivo (que el navegador hace ancho) estiraba la página de lado a 390 px (tanda 4). */
+.formulario,
+.campo,
+.censo,
+.resumen {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.campo input {
+  width: 100%;
+  min-width: 0;
+}
+
+.campo input:disabled,
+.boton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* HU-04 · Resumen del censo antes de guardar. */
+.censo {
+  display: grid;
+  gap: 1rem;
+}
+
+.resumen {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+.resumen__titulo {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.resumen__linea {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.resumen__avisos {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--texto-suave);
+}
+
+.resumen__avisos:empty {
+  display: none;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.acciones .boton {
+  flex: 1 1 9rem; /* en el celular, uno al lado del otro o uno debajo del otro */
+}
+
+:focus-visible {
+  outline: 3px solid var(--acento);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

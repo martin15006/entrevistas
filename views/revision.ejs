@@ -1,0 +1,11 @@
+<%- include('partes/arriba', { titulo: 'Revisión', pagina: 'revision' }) %>
+    <% if (locals.resumen) { %>
+      <h1>Revisión del censo del <%= locals.resumen.fechaTexto %></h1>
+      <p class="aviso aviso--exito" role="status">Censo guardado. <%= locals.resumen.texto %></p>
+    <% } else { %>
+      <h1>Revisión</h1>
+      <p class="aviso">No encontramos ese censo. Súbelo desde «Censo».</p>
+    <% } %>
+    <p class="aviso">La revisión por servicio, con los botones «Entrevistar» y «No entrevistar», se construye en la próxima tanda (HU-05).</p>
+    <p><a class="boton boton--secundario" href="/censo">Subir otro censo</a></p>
+<%- include('partes/abajo') %>

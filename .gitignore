@@ -1,0 +1,23 @@
+# Dependencias (se reinstalan con npm install)
+node_modules/
+
+# Llaves y configuración local (CL-04): nunca a GitHub
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Datos: ningún censo ni Excel real sale de este PC (CL-01, CL-10).
+# Los censos de prueba se generan con `npm run censo-prueba` y tampoco se suben.
+*.xlsx
+*.xls
+*.pdf
+datos-prueba/
+
+# Herramientas
+.impeccable/
+
+# Pendiente de decidir al crear el repositorio (pacto, sección 4):
+# si el repositorio es público, se descomenta la línea de abajo.
+# docs/

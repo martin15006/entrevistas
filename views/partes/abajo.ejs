@@ -1,0 +1,10 @@
+<%#
+  Final de toda página. Recibe, si la página los necesita, scripts: rutas de archivos
+  propios de /js (nunca código en línea, por la CSP).
+%>
+  </main>
+  <% for (const script of (locals.scripts || [])) { %>
+    <script src="<%= script %>" defer></script>
+  <% } %>
+</body>
+</html>

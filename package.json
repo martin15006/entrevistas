@@ -1,0 +1,31 @@
+{
+  "name": "entrevistas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Entrevistas de accidentes de tránsito a partir del censo de camas",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test \"test/*.test.js\"",
+    "test:vivo": "node --env-file-if-exists=.env --test \"test-vivo/*.test.js\"",
+    "crear-admin": "node --env-file-if-exists=.env scripts/crear-admin.js",
+    "censo-prueba": "node scripts/censo-de-prueba.js",
+    "revisar-env": "node --env-file-if-exists=.env scripts/revisar-env.js",
+    "revisar-base": "node --env-file-if-exists=.env scripts/revisar-base.js"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "ejs": "7.0.1",
+    "exceljs": "4.4.0",
+    "express": "5.3.0"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}

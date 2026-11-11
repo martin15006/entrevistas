@@ -1,0 +1,27 @@
+<%- include('partes/arriba', { titulo: 'Iniciar sesión', pagina: 'login' }) %>
+    <section class="acceso" aria-labelledby="titulo-acceso">
+      <h1 id="titulo-acceso">Iniciar sesión</h1>
+
+      <% if (locals.mensaje) { %>
+        <p class="aviso aviso--error" role="alert"><%= locals.mensaje %></p>
+      <% } %>
+
+      <form class="formulario" method="post" action="/login" novalidate>
+        <input type="hidden" name="_csrf" value="<%= locals.csrf || '' %>">
+
+        <label class="campo">
+          <span class="campo__nombre">Correo</span>
+          <input type="email" name="correo" value="<%= locals.correo || '' %>"
+                 autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false"
+                 maxlength="254" required>
+        </label>
+
+        <label class="campo">
+          <span class="campo__nombre">Contraseña</span>
+          <input type="password" name="contrasena" autocomplete="current-password" maxlength="200" required>
+        </label>
+
+        <button type="submit" class="boton boton--ancho">Entrar</button>
+      </form>
+    </section>
+<%- include('partes/abajo') %>

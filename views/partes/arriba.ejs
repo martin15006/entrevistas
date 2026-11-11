@@ -1,0 +1,44 @@
+<%#
+  Comienzo de toda página. Recibe: titulo, pagina (para marcar el menú) y, si hay sesión,
+  cuenta ({ nombre, rol }). csrf llega solo desde res.locals.
+  CL-05: los datos siempre con la etiqueta que escapa (la del signo igual) y entre comillas;
+  nada de scripts ni estilos en línea, por la CSP.
+%>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= locals.titulo || 'Entrevistas' %> · Entrevistas</title>
+  <link rel="stylesheet" href="/css/estilos.css">
+</head>
+<body data-csrf="<%= locals.csrf || '' %>">
+  <header class="barra">
+    <a class="marca" href="/">Entrevistas</a>
+    <% if (locals.cuenta) { %>
+      <%
+        const enlaces = [
+          { href: '/entrevistas', texto: 'Entrevistas', clave: 'entrevistas' },
+          { href: '/censo', texto: 'Censo', clave: 'censo' },
+          { href: '/buscar', texto: 'Buscar', clave: 'buscar' },
+        ];
+        // CL-03 y HU-02.11: el usuario normal ni siquiera ve la opción de administrador.
+        if (locals.cuenta.rol === 'administrador') enlaces.push({ href: '/usuarios', texto: 'Usuarios', clave: 'usuarios' });
+        enlaces.push({ href: '/cuenta', texto: 'Mi cuenta', clave: 'cuenta' });
+      %>
+      <nav class="navegacion" aria-label="Principal">
+        <ul>
+          <% for (const enlace of enlaces) { %>
+            <li><a href="<%= enlace.href %>"<% if (locals.pagina === enlace.clave) { %> aria-current="page"<% } %>><%= enlace.texto %></a></li>
+          <% } %>
+          <li>
+            <form method="post" action="/salir">
+              <input type="hidden" name="_csrf" value="<%= locals.csrf || '' %>">
+              <button type="submit" class="enlace">Cerrar sesión</button>
+            </form>
+          </li>
+        </ul>
+      </nav>
+    <% } %>
+  </header>
+  <main id="contenido" class="contenido">
