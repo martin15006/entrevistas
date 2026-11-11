@@ -74,6 +74,14 @@ function aplicar(estado, sentencia) {
     estado.tablas[m[1]].columnas[m[2].toLowerCase()] = `${m[2]} ${m[3]}`;
   } else if ((m = /^alter table public\.(\w+) drop column (?:if exists )?(\w+)/i.exec(sentencia))) {
     delete estado.tablas[m[1]].columnas[m[2].toLowerCase()];
+  } else if ((m = /^alter table public\.(\w+) add (constraint \w+ .*)$/i.exec(sentencia))) {
+    // Una regla agregada después queda igual que si estuviera al final del "create table".
+    estado.tablas[m[1]].reglas.push(m[2]);
+  } else if ((m = /^drop function (?:if exists )?public\.(\w+)\(([^)]*)\)$/i.exec(sentencia))) {
+    // Se va la función y también los permisos de esa firma (sus grant y revoke ya no existen).
+    delete estado.funciones[m[1]];
+    const firma = `function public.${m[1]}(${m[2]})`;
+    for (const permiso of [...estado.permisos]) if (permiso.includes(firma)) estado.permisos.delete(permiso);
   } else if ((m = /^alter table public\.(\w+) enable row level security$/i.exec(sentencia))) {
     estado.rls.add(m[1]);
   } else if (/^create (unique )?index /i.test(sentencia)) {

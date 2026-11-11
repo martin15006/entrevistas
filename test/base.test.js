@@ -241,6 +241,64 @@ test('CL-02 · guardar_censo solo lee de cada fila los datos permitidos', () => 
   assert.deepEqual([...new Set(columnas)].sort(), ['cama', 'cedula', 'dias', 'fecha_ingreso', 'nombre', 'nombre_busqueda', 'orden', 'piso']);
 });
 
+// --- 06-revision.sql (tanda 5). Lo de verdad se prueba en vivo (test-vivo/). ---
+
+const SQL06 = leer('database', '06-revision.sql');
+const SQL06_SIN_COMENTARIOS = SQL06.split('\n').map((linea) => linea.replace(/--.*$/, '')).join('\n');
+const FUNCIONES_06 = { por_revisar: 'bigint, date, text', revision_del_censo: 'date', decidir_candidato: 'bigint, text, text' };
+
+test('CL-03 · en 06, las funciones de la revisión corren con los permisos de quien llama (07 cambia decidir_candidato)', () => {
+  assert.doesNotMatch(SQL06_SIN_COMENTARIOS, /security definer/, 'con "definer" se saltaría el RLS');
+  assert.equal((SQL06_SIN_COMENTARIOS.match(/security invoker/g) ?? []).length, 3);
+  assert.equal((SQL06_SIN_COMENTARIOS.match(/set search_path = ''/g) ?? []).length, 4, 'las 3 funciones y el guardia');
+  assert.equal((SQL06_SIN_COMENTARIOS.match(/if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/g) ?? []).length, 2);
+  for (const [nombre, argumentos] of Object.entries(FUNCIONES_06)) {
+    assert.ok(SQL06.includes(`revoke execute on function public.${nombre}(${argumentos}) from public, anon;`), nombre);
+    assert.ok(SQL06.includes(`grant execute on function public.${nombre}(${argumentos}) to authenticated;`), nombre);
+  }
+});
+
+test('CB-16 · decidir_candidato pone en fila las decisiones del mismo paciente y compara con lo que se veía', () => {
+  assert.match(SQL06_SIN_COMENTARIOS, /perform 1 from public\.estancias where id = v_estancia for update;/);
+  assert.match(SQL06_SIN_COMENTARIOS, /if v_decision is distinct from p_desde then/);
+  assert.match(SQL06_SIN_COMENTARIOS, /if v_estado = 'entrevistado' then\s+return jsonb_build_object\('resultado', 'ya_entrevistado'\)/);
+});
+
+test('RN-08 · el guardia de candidatos no deja que una decisión vuelva a "sin decidir"', () => {
+  assert.match(SQL06_SIN_COMENTARIOS, /if new\.decision is null then\s+raise exception/);
+  assert.match(leer('database', 'global.sql'), /if new\.decision is null then\s+raise exception/, 'y global.sql trae la versión nueva');
+});
+
+// --- 07-decidir-por-una-sola-puerta.sql (revisión PYA de la tanda 5). En vivo: test-vivo/. ---
+
+const SQL07 = leer('database', '07-decidir-por-una-sola-puerta.sql');
+const SQL07_SIN_COMENTARIOS = SQL07.split('\n').map((linea) => linea.replace(/--.*$/, '')).join('\n');
+const GLOBAL = leer('database', 'global.sql');
+
+test('CL-03 · se decide por una sola puerta: sin escrituras directas, y la función exige una cuenta activa', () => {
+  for (const linea of ['revoke update on public.candidatos from authenticated;', 'revoke insert, delete on public.entrevistas from authenticated;']) {
+    assert.ok(SQL07.includes(linea), linea);
+    assert.ok(GLOBAL.includes(linea), `global.sql: ${linea}`);
+  }
+  assert.match(SQL07_SIN_COMENTARIOS, /security definer\s+set search_path = ''/);
+  assert.match(SQL07_SIN_COMENTARIOS, /begin\s+if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/, 'lo primero que hace');
+  assert.match(SQL07, /drop function public\.decidir_candidato\(bigint, text, text\);/, 'no queda la versión vieja como otra puerta');
+  assert.ok(SQL07.includes('revoke execute on function public.decidir_candidato(bigint, text, text, timestamptz) from public, anon;'));
+  assert.ok(SQL07.includes('grant execute on function public.decidir_candidato(bigint, text, text, timestamptz) to authenticated;'));
+});
+
+test('RN-02 · una entrevista solo apunta al candidato de su misma estancia', () => {
+  assert.ok(SQL07.includes('add constraint entrevistas_candidato_de_su_estancia foreign key (candidato_id, estancia_id) references public.candidatos (id, estancia_id)'));
+  assert.ok(GLOBAL.includes('constraint entrevistas_candidato_de_su_estancia foreign key (candidato_id, estancia_id) references public.candidatos (id, estancia_id)'));
+});
+
+test('CB-16 · RN-07 · decidir aparta también la entrevista, compara la hora y no sigue si algo cambió', () => {
+  assert.match(SQL07_SIN_COMENTARIOS, /for update;\s+if not found then\s+raise exception 'No se pudo apartar/);
+  assert.match(SQL07_SIN_COMENTARIOS, /from public\.entrevistas where estancia_id = v_estancia\s+for update;/);
+  assert.match(SQL07_SIN_COMENTARIOS, /or \(p_desde is not null and v_en is distinct from p_desde_en\)/);
+  assert.match(SQL07_SIN_COMENTARIOS, /delete from public\.entrevistas where id = v_entrevista;\s+if not found then\s+raise exception/);
+});
+
 test('RN-02 · RN-10 · la base exige una estancia por cédula y fecha, y los 5 datos para "entrevistado"', () => {
   assert.match(SQL, /unique \(cedula, fecha_ingreso\)/);
   assert.match(SQL, /check \(estado <> 'entrevistado' or \(/);

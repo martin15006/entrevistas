@@ -97,7 +97,9 @@ test('HU-04.2 · al confirmar se guardan solo los candidatos y se va a la revisi
     const revision = await nav.get(datos.redirigir);
     assert.equal(revision.estado, 200);
     assert.ok(revision.texto.includes('Revisión del censo del 06/11/2026'));
-    assert.ok(revision.texto.includes(`Tiene ${candidatos.length} pacientes con día 0 o 1 para revisar.`));
+    // HU-04.2 → HU-05: los candidatos guardados están todos "Por revisar".
+    assert.ok(revision.texto.includes('<h2 id="titulo-por-revisar">Por revisar</h2>'));
+    assert.equal((revision.texto.match(/<li class="candidato" /g) ?? []).length, candidatos.length);
   });
 });
 
@@ -301,19 +303,6 @@ test('RNF-03 · CB-02 · sin sesión, leer o guardar responde 401 (la pantalla l
       assert.equal(json(respuesta).codigo, 'sesion');
     }
     assert.equal(base.llamadas.length, 0);
-  });
-});
-
-test('base · la página de revisión: un día que no existe o mal escrito no rompe nada', async () => {
-  const { app } = preparar();
-  await conServidor(app, async (servidor) => {
-    const { nav } = await entrarYAbrirCenso(servidor);
-    for (const dia of ['2026-01-01', 'no-es-fecha', '<script>']) {
-      const pagina = await nav.get(`/revision?dia=${encodeURIComponent(dia)}`);
-      assert.equal(pagina.estado, 200, dia);
-      assert.ok(pagina.texto.includes('No encontramos ese censo.'), dia);
-      assert.ok(!pagina.texto.includes('<script>alert'), dia);
-    }
   });
 });
 

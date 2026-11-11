@@ -250,6 +250,164 @@ h1 {
   flex: 1 1 9rem; /* en el celular, uno al lado del otro o uno debajo del otro */
 }
 
+/* HU-05 y HU-06 · Revisión por servicio, con verde y rojo. */
+.revision,
+.revision__lista {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.selector-dia {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.selector-dia__fila {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.selector-dia select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+}
+
+.revision__seccion h2,
+.revisados > summary {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.grupo {
+  margin-bottom: 1rem;
+}
+
+.grupo__titulo {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  color: var(--texto-suave);
+}
+
+.candidatos {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidato {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  overflow-wrap: anywhere; /* un nombre largo no estira la página de lado (CL-07) */
+}
+
+.candidato p {
+  margin: 0;
+}
+
+.candidato__cama {
+  font-weight: 700;
+}
+
+.candidato__detalle {
+  color: var(--texto-suave);
+}
+
+.candidato__dia {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.candidato__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.candidato__acciones .decidir {
+  flex: 1 1 8rem; /* en el celular, uno al lado del otro */
+  margin: 0;
+}
+
+.decidir {
+  margin: 0.5rem 0 0;
+}
+
+.decidir .boton {
+  width: 100%;
+}
+
+.boton--verde {
+  background: var(--exito);
+}
+
+.boton--rojo {
+  background: var(--peligro);
+}
+
+.candidato__decision {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+/* Lo plegado (Ya revisados, Cambiar decisión) se abre con un toque de 44 px. */
+.revisados > summary,
+.cambiar > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--toque);
+  list-style: none;
+  cursor: pointer;
+}
+
+/* La flecha propia muestra que se abre (con display:flex, la del navegador desaparece). */
+.revisados > summary::-webkit-details-marker,
+.cambiar > summary::-webkit-details-marker {
+  display: none;
+}
+
+.revisados > summary::before,
+.cambiar > summary::before {
+  content: "▸";
+  margin-right: 0.5rem;
+}
+
+.revisados[open] > summary::before,
+.cambiar[open] > summary::before {
+  content: "▾";
+}
+
+.cambiar > summary {
+  color: var(--acento);
+  font-weight: 600;
+}
+
+/* Los avisos que deja el JavaScript al decidir: fijos abajo, para verlos sin subir. */
+.aviso--flotante {
+  position: fixed;
+  right: var(--espacio);
+  bottom: calc(var(--espacio) + env(safe-area-inset-bottom, 0px));
+  left: var(--espacio);
+  z-index: 10;
+  max-width: 46rem;
+  margin: 0 auto;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+}
+
 :focus-visible {
   outline: 3px solid var(--acento);
   outline-offset: 2px;

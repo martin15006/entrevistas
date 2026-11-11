@@ -1,11 +1,34 @@
+<%#
+  HU-05 y HU-06 · La revisión de un censo. Recibe: revision (lo que arma lib/revision.js),
+  aviso (un mensaje cuando no hay JavaScript) y mensajes (los textos que usa el JavaScript).
+  CL-05: los datos siempre escapados y los textos para el JavaScript en atributos data-*.
+-%>
+<% const r = locals.revision; -%>
 <%- include('partes/arriba', { titulo: 'Revisión', pagina: 'revision' }) %>
-    <% if (locals.resumen) { %>
-      <h1>Revisión del censo del <%= locals.resumen.fechaTexto %></h1>
-      <p class="aviso aviso--exito" role="status">Censo guardado. <%= locals.resumen.texto %></p>
-    <% } else { %>
-      <h1>Revisión</h1>
-      <p class="aviso">No encontramos ese censo. Súbelo desde «Censo».</p>
-    <% } %>
-    <p class="aviso">La revisión por servicio, con los botones «Entrevistar» y «No entrevistar», se construye en la próxima tanda (HU-05).</p>
-    <p><a class="boton boton--secundario" href="/censo">Subir otro censo</a></p>
-<%- include('partes/abajo') %>
+    <section id="revision" class="revision" aria-labelledby="titulo-revision"
+             data-mensaje-listo="<%= locals.mensajes.listo %>"
+             data-mensaje-conexion="<%= locals.mensajes.conexion %>">
+      <h1 id="titulo-revision"><%= r.censo ? `Revisión del censo del ${r.censo.fechaTexto}` : 'Revisión' %></h1>
+
+      <% if (r.dias.length > 0) { %>
+        <%# HU-05.1 · Elegir otro día. Es un formulario normal: funciona sin JavaScript. %>
+        <form class="selector-dia" method="get" action="/revision">
+          <label class="campo__nombre" for="dia">Día del censo</label>
+          <div class="selector-dia__fila">
+            <select id="dia" name="dia">
+              <% for (const dia of r.dias) { %>
+                <option value="<%= dia.valor %>"<% if (dia.elegido) { %> selected<% } %>><%= dia.texto %></option>
+              <% } %>
+            </select>
+            <button type="submit" class="boton boton--secundario">Ver</button>
+          </div>
+        </form>
+      <% } %>
+
+      <%- include('partes/revision-lista', { r }) %>
+    </section>
+
+    <%# Avisos que deja el JavaScript al decidir: abajo de la pantalla, para verlos sin subir. %>
+    <p id="estado-revision" class="aviso aviso--exito aviso--flotante" role="status" hidden></p>
+    <p id="aviso-revision" class="aviso aviso--error aviso--flotante" role="alert" hidden></p>
+<%- include('partes/abajo', { scripts: ['/js/revision.js'] }) %>

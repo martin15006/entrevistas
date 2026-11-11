@@ -69,6 +69,22 @@ async function principal() {
   if (errorCensoVisitante) bien(`guardar_censo: el visitante no la puede usar (${errorCensoVisitante.code ?? errorCensoVisitante.status})`);
   else mal('guardar_censo: ¡un visitante sin sesión la pudo usar!');
 
+  console.log('\n5. Revisión y verde o rojo: solo cuentas activas');
+  // Un día lejano y un candidato que no existe: aunque algo fallara, no se decidiría nada de verdad.
+  const llamadas = [
+    ['revision_del_censo', { p_fecha: '2099-12-31' }],
+    ['decidir_candidato', { p_candidato: 0, p_decision: 'entrevistar', p_desde: null }],
+  ];
+  for (const [funcion, argumentos] of llamadas) {
+    const { error: deServidor } = await servidor.rpc(funcion, argumentos);
+    if (deServidor?.code === 'PGRST202') mal(`${funcion}: no existe. ¿Se pegó database/06-revision.sql?`);
+    else if (deServidor?.code === '42501') bien(`${funcion} existe y no responde sin una cuenta activa`);
+    else mal(`${funcion}: respondió algo inesperado (${deServidor?.code ?? 'sin error'}).`);
+    const { error: deVisitante } = await visitante.rpc(funcion, argumentos);
+    if (deVisitante) bien(`${funcion}: el visitante no la puede usar (${deVisitante.code ?? deVisitante.status})`);
+    else mal(`${funcion}: ¡un visitante sin sesión la pudo usar!`);
+  }
+
   console.log(problemas === 0 ? '\nTodo bien ✅' : `\n${problemas} cosa(s) por arreglar ❌`);
   process.exitCode = problemas === 0 ? 0 : 1;
 }

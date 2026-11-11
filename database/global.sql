@@ -7,7 +7,7 @@
 -- numerados que falten (01-esquema.sql, 02-proteger-registros.sql…), en orden.
 --
 -- Es la suma limpia de: 01-esquema.sql + 02-proteger-registros.sql + 03-limpiar-pruebas.sql
--- + 04-limpiar-solo-pruebas-automaticas.sql + 05-guardar-censo.sql (CL-11).
+-- + 04-limpiar-solo-pruebas-automaticas.sql + 05-guardar-censo.sql + 06-revision.sql (CL-11).
 -- test/sql-global.test.js comprueba que no le falte nada de esos archivos.
 -- =====================================================================
 
@@ -60,7 +60,9 @@ create table public.candidatos (
   decidido_por uuid references public.perfiles (id),
   decidido_en  timestamptz,
   unique (censo_id, estancia_id),
-  check ((decision is null) = (decidido_por is null) and (decision is null) = (decidido_en is null))
+  check ((decision is null) = (decidido_por is null) and (decision is null) = (decidido_en is null)),
+  -- para que una entrevista solo pueda apuntar al candidato de su estancia (PYA tanda 5)
+  constraint candidatos_id_estancia unique (id, estancia_id)
 );
 create index candidatos_estancia on public.candidatos (estancia_id);
 
@@ -104,7 +106,9 @@ create table public.entrevistas (
     and char_length(coalesce(lugar, '')) > 0 and char_length(coalesce(relato, '')) > 0
   )),
   check (not (placa_no_sabe and placa is not null)),
-  check ((en_curso_por is null) = (en_curso_desde is null))
+  check ((en_curso_por is null) = (en_curso_desde is null)),
+  -- el candidato de la entrevista es de su MISMA estancia (PYA tanda 5)
+  constraint entrevistas_candidato_de_su_estancia foreign key (candidato_id, estancia_id) references public.candidatos (id, estancia_id)
 );
 create index entrevistas_estado on public.entrevistas (estado);
 create index entrevistas_candidato on public.entrevistas (candidato_id);
@@ -125,6 +129,11 @@ alter default privileges in schema public revoke all on tables from anon;
 -- Los compañeros ven nombre y rol, no el correo (el correo solo lo ve el servidor).
 revoke select on public.perfiles from authenticated;
 grant select (id, nombre, rol, activo, creado_en) on public.perfiles to authenticated;
+
+-- Decidir y crear o borrar entrevistas, solo por decidir_candidato (sección 7, PYA tanda 5).
+-- Llenar, corregir y marcar "Salió" siguen siendo un UPDATE de entrevistas.
+revoke update on public.candidatos from authenticated;
+revoke insert, delete on public.entrevistas from authenticated;
 
 -- Cuenta activa = perfil activo + una sesión que todavía existe (al cerrar las sesiones
 -- de alguien, su token deja de servir enseguida).
@@ -291,12 +300,12 @@ begin
   new.piso := old.piso;           new.cama := old.cama;
   new.dias := old.dias;           new.orden := old.orden;
 
+  -- Se puede cambiar de color (RN-07), pero una decisión no vuelve a quedar sin decidir (RN-08).
   if new.decision is distinct from old.decision then
     if new.decision is null then
-      new.decidido_por := null; new.decidido_en := null;
-    else
-      new.decidido_por := yo; new.decidido_en := now();
+      raise exception 'Una decisión no vuelve a quedar sin decidir' using errcode = 'check_violation';
     end if;
+    new.decidido_por := yo; new.decidido_en := now();
   else
     new.decidido_por := old.decidido_por; new.decidido_en := old.decidido_en;
   end if;
@@ -473,3 +482,238 @@ end;
 $$;
 revoke execute on function public.guardar_censo(date, jsonb) from public, anon;
 grant execute on function public.guardar_censo(date, jsonb) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 7. La revisión del censo y la decisión en verde o rojo (HU-05, HU-06). Corren con los
+--    permisos de quien las llama (security invoker). ¿Cuándo un candidato ya está revisado?
+--    Si se decidió en este censo, si su estancia ya tiene entrevista (RN-03) o si se decidió
+--    en un censo POSTERIOR. Un rojo de un censo anterior vuelve a "Por revisar" (RN-04).
+--    7.1 La regla de "Por revisar", en un solo lugar.
+-- ---------------------------------------------------------------------
+create or replace function public.por_revisar(p_estancia bigint, p_fecha date, p_decision text)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select p_decision is null
+    and not exists (select 1 from public.entrevistas i where i.estancia_id = p_estancia)
+    and not exists (
+      select 1
+      from public.candidatos d
+      join public.censos z on z.id = d.censo_id
+      where d.estancia_id = p_estancia and d.decision is not null and z.fecha > p_fecha
+    );
+$$;
+revoke execute on function public.por_revisar(bigint, date, text) from public, anon;
+grant execute on function public.por_revisar(bigint, date, text) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 7.2 Todo lo que muestra la pantalla de revisión, en una sola consulta (HU-05).
+--    p_fecha null = el censo más reciente (HU-05.1). Supabase entrega máximo 1.000 filas por
+--    consulta: por eso los pendientes de los días anteriores se cuentan aquí y no en el servidor.
+-- ---------------------------------------------------------------------
+create or replace function public.revision_del_censo(p_fecha date default null)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_id bigint;
+  v_fecha date;
+begin
+  if not (select public.es_cuenta_activa()) then
+    raise exception 'La cuenta no está activa' using errcode = '42501';
+  end if;
+
+  if p_fecha is null then
+    select id, fecha into v_id, v_fecha from public.censos order by fecha desc limit 1;
+  else
+    select id, fecha into v_id, v_fecha from public.censos where fecha = p_fecha;
+  end if;
+
+  return jsonb_build_object(
+    -- Los días para el selector (HU-05.1), del más nuevo al más viejo.
+    'dias', coalesce((
+      select jsonb_agg(d.fecha order by d.fecha desc)
+      from (select fecha from public.censos order by fecha desc limit 60) d
+    ), '[]'::jsonb),
+
+    'censo', case when v_id is null then null
+                  else jsonb_build_object('id', v_id, 'fecha', v_fecha) end,
+
+    -- Los candidatos, en el orden de las filas del censo (RN-09).
+    'candidatos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', c.id, 'piso', c.piso, 'cama', c.cama, 'dias', c.dias, 'orden', c.orden,
+        'cedula', e.cedula, 'nombre', e.nombre,
+        'por_revisar', public.por_revisar(c.estancia_id, v_fecha, c.decision),
+        'decision', c.decision, 'decidido_por', pd.nombre, 'decidido_en', c.decidido_en,
+        'entrevista_hecha', coalesce(i.candidato_id = c.id and i.estado = 'entrevistado', false),
+        -- La decisión que manda y se tomó en OTRO censo: ahí es donde se cambia.
+        'otra', case
+          when i.id is not null and (c.decision is null or i.candidato_id <> c.id) then
+            jsonb_build_object('decision', 'entrevistar', 'por', origen.nombre,
+                               'en', origen.decidido_en, 'fecha', origen.fecha)
+          when despues.fecha is not null then
+            jsonb_build_object('decision', despues.decision, 'por', despues.nombre,
+                               'en', despues.decidido_en, 'fecha', despues.fecha)
+        end
+      ) order by c.orden)
+      from public.candidatos c
+      join public.estancias e on e.id = c.estancia_id
+      left join public.perfiles pd on pd.id = c.decidido_por
+      left join public.entrevistas i on i.estancia_id = c.estancia_id
+      left join lateral (
+        select z.fecha, o.decidido_en, po.nombre
+        from public.candidatos o
+        join public.censos z on z.id = o.censo_id
+        left join public.perfiles po on po.id = o.decidido_por
+        where o.id = i.candidato_id
+      ) origen on true
+      left join lateral (
+        select z.fecha, d.decision, d.decidido_en, pp.nombre
+        from public.candidatos d
+        join public.censos z on z.id = d.censo_id
+        left join public.perfiles pp on pp.id = d.decidido_por
+        where d.estancia_id = c.estancia_id and d.decision is not null and z.fecha > v_fecha
+        order by z.fecha desc
+        limit 1
+      ) despues on true
+      where c.censo_id = v_id
+    ), '[]'::jsonb),
+
+    -- HU-05.5 · Los censos ANTERIORES que todavía tienen pacientes por revisar.
+    'pendientes', coalesce((
+      select jsonb_agg(jsonb_build_object('fecha', t.fecha, 'pendientes', t.n) order by t.fecha desc)
+      from (
+        select z.fecha, count(*) as n
+        from public.candidatos c
+        join public.censos z on z.id = c.censo_id
+        where z.fecha < v_fecha and c.decision is null
+          and public.por_revisar(c.estancia_id, z.fecha, c.decision)
+        group by z.fecha
+      ) t
+    ), '[]'::jsonb)
+  );
+end;
+$$;
+revoke execute on function public.revision_del_censo(date) from public, anon;
+grant execute on function public.revision_del_censo(date) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 7.3 Decidir en verde o rojo, o cambiar la decisión (HU-06, RN-05, RN-07, RN-08). Es la ÚNICA
+--    puerta para decidir y para crear o borrar entrevistas (security definer, PYA tanda 5): igual
+--    exige una cuenta activa y auth.uid() sigue siendo quien la llama. p_desde y p_desde_en son la
+--    decisión que la pantalla mostraba y su hora: si ya no es esa, alguien decidió antes (CB-16).
+--    Respuesta: { resultado: ok | ya_revisado | ya_entrevistado | no_existe, por }.
+-- ---------------------------------------------------------------------
+create or replace function public.decidir_candidato(p_candidato bigint, p_decision text, p_desde text default null, p_desde_en timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_yo uuid := (select auth.uid());
+  v_estancia bigint;
+  v_fecha date;
+  v_decision text;
+  v_por uuid;
+  v_en timestamptz;
+  v_entrevista bigint;
+  v_entrevista_de bigint;
+  v_estado text;
+  v_otro_por uuid;
+begin
+  -- Corre con permisos de dueño: esta revisión es la que deja afuera a quien no debe entrar.
+  if not (select public.es_cuenta_activa()) then
+    raise exception 'La cuenta no está activa' using errcode = '42501';
+  end if;
+  if p_decision is null or p_decision not in ('entrevistar', 'no_entrevistar')
+     or (p_desde is not null and p_desde not in ('entrevistar', 'no_entrevistar')) then
+    raise exception 'Decisión no válida' using errcode = '22023';
+  end if;
+
+  select c.estancia_id, z.fecha into v_estancia, v_fecha
+  from public.candidatos c
+  join public.censos z on z.id = c.censo_id
+  where c.id = p_candidato;
+  if v_estancia is null then
+    return jsonb_build_object('resultado', 'no_existe');
+  end if;
+
+  -- CB-16 · Las decisiones sobre un mismo paciente (en cualquier censo) se hacen en fila.
+  perform 1 from public.estancias where id = v_estancia for update;
+  if not found then
+    raise exception 'No se pudo apartar al paciente' using errcode = '55P03';
+  end if;
+
+  select decision, decidido_por, decidido_en into v_decision, v_por, v_en
+  from public.candidatos where id = p_candidato;
+  -- La entrevista también se aparta: así nadie la marca hecha mientras se decide.
+  select id, candidato_id, estado into v_entrevista, v_entrevista_de, v_estado
+  from public.entrevistas where estancia_id = v_estancia
+  for update;
+
+  -- Ya se decidió en otro censo (RN-03, o uno posterior): se cambia allá, no aquí.
+  if v_entrevista is not null and v_entrevista_de <> p_candidato then
+    select decidido_por into v_otro_por from public.candidatos where id = v_entrevista_de;
+    return jsonb_build_object('resultado', 'ya_revisado',
+      'por', (select nombre from public.perfiles where id = v_otro_por));
+  end if;
+  select d.decidido_por into v_otro_por
+  from public.candidatos d
+  join public.censos z on z.id = d.censo_id
+  where d.estancia_id = v_estancia and d.decision is not null and z.fecha > v_fecha
+  order by z.fecha desc
+  limit 1;
+  if v_otro_por is not null then
+    return jsonb_build_object('resultado', 'ya_revisado',
+      'por', (select nombre from public.perfiles where id = v_otro_por));
+  end if;
+
+  -- La pantalla mostraba otra cosa: alguien decidió un momento antes (HU-06.5, CB-16). Al cambiar
+  -- una decisión se compara también su hora: A→B→A deja el mismo color, pero no la misma decisión.
+  if v_decision is distinct from p_desde
+     or (p_desde is not null and v_en is distinct from p_desde_en) then
+    if v_decision = p_decision and v_por = v_yo then
+      return jsonb_build_object('resultado', 'ok'); -- CB-24: el mismo toque llegó dos veces
+    end if;
+    return jsonb_build_object('resultado', 'ya_revisado',
+      'por', (select nombre from public.perfiles where id = v_por));
+  end if;
+  if v_decision = p_decision then
+    return jsonb_build_object('resultado', 'ok'); -- ya estaba así: nada que cambiar
+  end if;
+
+  -- RN-07 · CB-11 · Con la entrevista hecha, la decisión ya no cambia.
+  if v_estado = 'entrevistado' then
+    return jsonb_build_object('resultado', 'ya_entrevistado');
+  end if;
+
+  -- El guardia de candidatos pone quién y cuándo (RN-08).
+  update public.candidatos set decision = p_decision where id = p_candidato;
+  if p_decision = 'entrevistar' then
+    -- RN-05 · Verde crea la entrevista Pendiente, ligada a este censo.
+    insert into public.entrevistas (estancia_id, candidato_id, creado_por)
+    values (v_estancia, p_candidato, v_yo);
+  elsif v_entrevista is not null then
+    -- RN-07 · De verde a rojo se borra la entrevista Pendiente o Salió.
+    delete from public.entrevistas where id = v_entrevista;
+    if not found then
+      raise exception 'La entrevista cambió mientras se decidía' using errcode = '40001';
+    end if;
+  end if;
+
+  return jsonb_build_object('resultado', 'ok');
+end;
+$$;
+revoke execute on function public.decidir_candidato(bigint, text, text, timestamptz) from public, anon;
+grant execute on function public.decidir_candidato(bigint, text, text, timestamptz) to authenticated;

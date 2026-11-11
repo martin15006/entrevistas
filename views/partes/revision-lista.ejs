@@ -1,0 +1,85 @@
+<%#
+  HU-05 y HU-06 · La lista de la revisión. Es lo que public/js/revision.js reemplaza después de
+  cada decisión, sin recargar la página. Recibe: r (lib/revision.js), aviso y csrf.
+  Cada botón es un formulario: sin JavaScript también funciona.
+-%>
+<% const claseDe = (decision) => (decision === 'entrevistar' ? 'boton--verde' : 'boton--rojo'); -%>
+<div id="revision-lista" class="revision__lista" data-dia="<%= r.censo ? r.censo.fecha : '' %>">
+  <% if (locals.aviso) { %>
+    <p class="aviso aviso--error" role="alert"><%= locals.aviso %></p>
+  <% } %>
+
+  <% if (!r.censo) { %>
+    <p class="aviso"><%= r.mensaje %></p>
+  <% } else { %>
+    <% for (const aviso of r.avisos) { %>
+      <%# HU-05.5 · Un censo anterior con pacientes sin revisar, con el enlace a ese día. %>
+      <p class="aviso"><a href="<%= aviso.href %>"><%= aviso.texto %></a></p>
+    <% } %>
+
+    <% if (r.sinCandidatos) { %>
+      <p class="aviso"><%= r.sinCandidatos %></p>
+    <% } else { %>
+      <section class="revision__seccion" aria-labelledby="titulo-por-revisar">
+        <h2 id="titulo-por-revisar">Por revisar</h2>
+        <% if (r.todosRevisados) { %>
+          <p class="aviso aviso--exito"><%= r.todosRevisados %></p>
+        <% } %>
+        <% for (const grupo of r.porRevisar) { %>
+          <section class="grupo" aria-label="<%= grupo.titulo %>">
+            <h3 class="grupo__titulo"><%= grupo.titulo %></h3>
+            <ul class="candidatos">
+              <% for (const c of grupo.candidatos) { %>
+                <li class="candidato" id="candidato-<%= c.id %>" data-nombre="<%= c.nombre %>">
+                  <p class="candidato__cama"><%= c.cama %></p>
+                  <p class="candidato__nombre"><%= c.nombre %></p>
+                  <p class="candidato__detalle"><%= c.cedula %> · <span class="candidato__dia"><%= c.dia %></span></p>
+                  <div class="candidato__acciones">
+                    <%- include('decidir', { c, decision: 'entrevistar', texto: 'Entrevistar', clase: 'boton--verde', desde: '', dia: r.censo.fecha }) %>
+                    <%- include('decidir', { c, decision: 'no_entrevistar', texto: 'No entrevistar', clase: 'boton--rojo', desde: '', dia: r.censo.fecha }) %>
+                  </div>
+                </li>
+              <% } %>
+            </ul>
+          </section>
+        <% } %>
+      </section>
+
+      <% if (r.revisados.total > 0) { %>
+        <%# HU-05.3 · Los ya decididos, abajo y plegados. %>
+        <details class="revisados" id="revisados">
+          <summary>Ya revisados (<%= r.revisados.total %>)</summary>
+          <% for (const grupo of r.revisados.grupos) { %>
+            <section class="grupo" aria-label="<%= grupo.titulo %>">
+              <h3 class="grupo__titulo"><%= grupo.titulo %></h3>
+              <ul class="candidatos">
+                <% for (const c of grupo.candidatos) { %>
+                  <li class="candidato candidato--revisado" id="candidato-<%= c.id %>" data-nombre="<%= c.nombre %>">
+                    <p class="candidato__cama"><%= c.cama %></p>
+                    <p class="candidato__nombre"><%= c.nombre %></p>
+                    <p class="candidato__detalle"><%= c.cedula %> · <span class="candidato__dia"><%= c.dia %></span></p>
+                    <p class="candidato__decision"><%= c.icono %> <%= c.etiqueta %><% if (c.quien) { %> · <%= c.quien %><% } %></p>
+                    <% if (c.otroCenso) { %>
+                      <p class="candidato__otro"><a href="<%= c.otroCenso.href %>"><%= c.otroCenso.texto %></a></p>
+                    <% } %>
+                    <% if (c.puedeCambiar) { %>
+                      <%# HU-06.4 · Cambiar al otro color (RN-07). Con la entrevista hecha, no se puede. %>
+                      <details class="cambiar">
+                        <summary>Cambiar decisión</summary>
+                        <% if (c.entrevistaHecha) { %>
+                          <p class="aviso"><%= r.textos.entrevistaHecha %></p>
+                        <% } else { %>
+                          <%- include('decidir', { c, decision: c.cambiarA, texto: c.cambiarEtiqueta, clase: claseDe(c.cambiarA), desde: c.desde, desdeEn: c.desdeEn, dia: r.censo.fecha }) %>
+                        <% } %>
+                      </details>
+                    <% } %>
+                  </li>
+                <% } %>
+              </ul>
+            </section>
+          <% } %>
+        </details>
+      <% } %>
+    <% } %>
+  <% } %>
+</div>

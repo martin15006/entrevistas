@@ -1,0 +1,14 @@
+<%#
+  HU-06 · Un botón de decisión: un formulario con lo que la base necesita para saber si alguien
+  decidió antes (desde y desde_en = la decisión que la pantalla mostraba y su hora; vacíos = sin
+  decidir, CB-16). Recibe: c (el candidato), decision, texto, clase, desde, desdeEn, dia y csrf.
+-%>
+<form class="decidir" method="post" action="/revision/decidir" data-decidir>
+  <input type="hidden" name="_csrf" value="<%= locals.csrf || '' %>">
+  <input type="hidden" name="candidato" value="<%= c.id %>">
+  <input type="hidden" name="decision" value="<%= decision %>">
+  <input type="hidden" name="desde" value="<%= desde %>">
+  <input type="hidden" name="desde_en" value="<%= locals.desdeEn || '' %>">
+  <input type="hidden" name="dia" value="<%= dia %>">
+  <button type="submit" class="boton <%= clase %>"><%= texto %></button>
+</form>

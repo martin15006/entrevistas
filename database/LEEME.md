@@ -9,7 +9,9 @@ Regla del proyecto: **CL-11** (`docs/clausulas.md`).
 | `02-proteger-registros.sql` | Historial: los guardias (triggers) que ponen quién hizo cada cosa y protegen las entrevistas hechas. | Ya aplicado (2026-11-09). |
 | `03-limpiar-pruebas.sql` | Historial: `limpiar_pruebas()`, que borra lo creado por las cuentas de prueba (para `npm run test:vivo`). Solo la usa el servidor. | Ya aplicado (2026-11-09). |
 | `04-limpiar-solo-pruebas-automaticas.sql` | Historial: la limpieza solo toca las cuentas `tst-…@prueba.test` de las pruebas automáticas; las cuentas de desarrollo de las personas (`martin@prueba.test`, etc.) no se tocan. | Ya aplicado (2026-11-09). |
-| `05-guardar-censo.sql` | Historial: `guardar_censo()`, que guarda el censo del día, sus estancias y sus candidatos en un solo paso (HU-04). Corre con los permisos de quien la llama. | Pendiente de aplicar. |
+| `05-guardar-censo.sql` | Historial: `guardar_censo()`, que guarda el censo del día, sus estancias y sus candidatos en un solo paso (HU-04). Corre con los permisos de quien la llama. | Ya aplicado (2026-11-10). |
+| `06-revision.sql` | Historial: la revisión del censo (`revision_del_censo()`, HU-05) y la decisión en verde o rojo (`decidir_candidato()`, HU-06), con la regla de "Por revisar" (`por_revisar()`) en un solo lugar. Además, el guardia de candidatos ya no deja que una decisión vuelva a "sin decidir". | Ya aplicado (2026-11-11). |
+| `07-decidir-por-una-sola-puerta.sql` | Historial (revisión PYA de la tanda 5): `decidir_candidato()` pasa a ser la **única puerta** para decidir y para crear o borrar entrevistas (las cuentas ya no pueden hacerlo escribiendo directo en las tablas), aparta también la entrevista mientras decide, compara la hora de la decisión que se veía (A→B→A) y una entrevista solo puede apuntar al candidato de su estancia. | Pendiente de aplicar. |
 
 > Cuentas: las de desarrollo de las personas usan `…@prueba.test` (ese dominio nunca recibe correos). Las pruebas automáticas crean y borran cuentas `tst-…@prueba.test`: **no uses ese prefijo para una cuenta tuya**.
 
