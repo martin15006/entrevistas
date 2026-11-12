@@ -20,6 +20,8 @@ const SOLICITUD_MALA = 'No pudimos leer lo que enviaste. Recarga la página e in
 const cuentas = () => [
   { id: 'id-ana', correo: 'ana@prueba.test', contrasena: 'clave-ana-123', perfil: { nombre: 'ANA PRUEBA', rol: 'usuario', activo: true } },
   { id: 'id-beto', correo: 'beto@prueba.test', contrasena: 'clave-beto-123', perfil: { nombre: 'BETO PRUEBA', rol: 'usuario', activo: true } },
+  // Un nombre con HTML adentro: tiene que verse como texto, nunca ejecutarse (CL-05, PYA tanda 6).
+  { id: 'id-raro', correo: 'raro@prueba.test', contrasena: 'clave-raro-123', perfil: { nombre: '<img src=x onerror=alert(1)>', rol: 'usuario', activo: true } },
 ];
 
 /** Un candidato inventado, como lo guarda guardar_censo. */
@@ -398,5 +400,106 @@ test('RN-03 · aclaración 2026-11-11 · decidido en un censo posterior: aparece
     const aqui = await decidir(nav, { candidato: String(viejo.id), decision: 'entrevistar', desde: '', dia: '2026-11-05' });
     assert.equal(aqui.estado, 409);
     assert.deepEqual(json(aqui), { error: YA_REVISO, codigo: 'ya_revisado' });
+  });
+});
+
+test('HU-07.1 · HU-07.2 · un rojo de un censo anterior vuelve a "Por revisar" con su aviso, y se decide igual', async () => {
+  const { app, base, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 0 })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'no_entrevistar', 'id-beto');
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 1 }), paciente(4, 'UCI')]); // vuelve la misma estancia
+  const hoy = candidato('2026-11-06', '991003');
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    const { texto } = await nav.get('/revision');
+    assert.ok(texto.includes('<p class="candidato__aviso">El 05/11/2026 se marcó como NO entrevistar (por BETO PRUEBA).</p>'));
+    assert.equal(cuantos(texto, /class="candidato__aviso"/g), 1, 'solo el que tuvo el rojo');
+    const enPorRevisar = texto.indexOf('id="titulo-por-revisar"') < texto.indexOf('El 05/11/2026 se marcó');
+    assert.ok(enPorRevisar, 'en "Por revisar" (RN-04)');
+
+    // HU-07.2 · "Entrevistar" funciona igual que en HU-06.
+    const respuesta = await decidir(nav, { candidato: String(hoy.id), decision: 'entrevistar', desde: '', dia: '2026-11-06' });
+    assert.equal(respuesta.estado, 200);
+    assert.equal(hoy.decision, 'entrevistar');
+    assert.equal(base.entrevistas.get(hoy.clave)?.candidatoId, hoy.id);
+    const despues = await nav.get('/revision');
+    assert.equal(cuantos(despues.texto, /class="candidato__aviso"/g), 0, 'ya decidido: el aviso ya no hace falta');
+  });
+});
+
+test('HU-07.2 · con el aviso, "No entrevistar" también funciona igual', async () => {
+  const { app, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 0 })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'no_entrevistar', 'id-beto');
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 1 })]);
+  const hoy = candidato('2026-11-06', '991003');
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    await nav.get('/revision');
+    const respuesta = await decidir(nav, { candidato: String(hoy.id), decision: 'no_entrevistar', desde: '', dia: '2026-11-06' });
+    assert.equal(respuesta.estado, 200);
+    assert.equal(hoy.decision, 'no_entrevistar');
+    assert.equal(hoy.decidido_por, 'id-ana');
+  });
+});
+
+test('HU-07.3 · RN-02 · la misma cédula con otra fecha de ingreso es otra estancia: sin aviso', async () => {
+  const { app, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 0, ingreso: '2026-11-05' })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'no_entrevistar', 'id-beto');
+  // Salió y volvió a entrar el 06/11: la misma cédula, con otra fecha de ingreso.
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 0, ingreso: '2026-11-06' })]);
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    const { texto } = await nav.get('/revision');
+    assert.ok(texto.includes('<p class="candidato__nombre">PACIENTE 3 PRUEBA</p>'), 'aparece como candidato');
+    assert.equal(cuantos(texto, /class="candidato__aviso"/g), 0);
+    assert.ok(!texto.includes('se marcó como NO entrevistar'));
+  });
+});
+
+test('CL-05 · el nombre de quien decidió sale escapado en el aviso del rojo y en "Ya revisados"', async () => {
+  const { app, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 0 }), paciente(4, 'UCI', { dias: 0 })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'no_entrevistar', 'id-raro');
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 1 }), paciente(5, 'UCI')]);
+  decidirComo(candidato('2026-11-06', '991005').id, 'entrevistar', 'id-raro');
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    const { texto } = await nav.get('/revision');
+    assert.ok(texto.includes('(por &lt;img src=x onerror=alert(1)&gt;).'), 'en el aviso del rojo anterior');
+    assert.ok(texto.includes('🟢 Entrevistar · &lt;img src=x onerror=alert(1)&gt;'), 'en "Ya revisados"');
+    assert.ok(!texto.includes('<img src=x'), 'nunca como HTML');
+  });
+});
+
+test('HU-07.1 · con dos rojos anteriores, el aviso es del más reciente', async () => {
+  const { app, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-04', [paciente(3, 'UCI', { dias: 0, ingreso: '2026-11-04' })]);
+  decidirComo(candidato('2026-11-04', '991003').id, 'no_entrevistar', 'id-ana');
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 1, ingreso: '2026-11-04' })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'no_entrevistar', 'id-beto');
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 1, ingreso: '2026-11-04' })]);
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    const { texto } = await nav.get('/revision');
+    assert.ok(texto.includes('El 05/11/2026 se marcó como NO entrevistar (por BETO PRUEBA).'));
+    assert.ok(!texto.includes('El 04/11/2026 se marcó'), 'solo el más reciente');
+  });
+});
+
+test('RN-03 · HU-07 · rojo y después verde en un censo del medio: ya está revisado, sin aviso', async () => {
+  const { app, sembrar, candidato, decidirComo } = preparar();
+  await sembrar('2026-11-04', [paciente(3, 'UCI', { dias: 0, ingreso: '2026-11-04' })]);
+  decidirComo(candidato('2026-11-04', '991003').id, 'no_entrevistar', 'id-ana');
+  await sembrar('2026-11-05', [paciente(3, 'UCI', { dias: 1, ingreso: '2026-11-04' })]);
+  decidirComo(candidato('2026-11-05', '991003').id, 'entrevistar', 'id-beto'); // verde: ya tiene entrevista
+  await sembrar('2026-11-06', [paciente(3, 'UCI', { dias: 1, ingreso: '2026-11-04' })]);
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    const { texto } = await nav.get('/revision');
+    assert.equal(cuantos(texto, /class="candidato__aviso"/g), 0);
+    assert.ok(texto.includes('<summary>Ya revisados (1)</summary>'));
+    assert.ok(texto.includes('<a href="/revision?dia=2026-11-05">Se decidió en el censo del 05/11/2026.</a>'));
   });
 });

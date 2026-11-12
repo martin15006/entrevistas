@@ -299,6 +299,20 @@ test('CB-16 · RN-07 · decidir aparta también la entrevista, compara la hora y
   assert.match(SQL07_SIN_COMENTARIOS, /delete from public\.entrevistas where id = v_entrevista;\s+if not found then\s+raise exception/);
 });
 
+// --- 08-recordar-rojo-anterior.sql (tanda 6). En vivo: test-vivo/. ---
+
+const SQL08 = leer('database', '08-recordar-rojo-anterior.sql');
+const SQL08_SIN_COMENTARIOS = SQL08.split('\n').map((linea) => linea.replace(/--.*$/, '')).join('\n');
+
+test('HU-07.1 · HU-07.3 · RN-04 · el rojo anterior es de la MISMA estancia, de un censo anterior, con la fecha de ese censo', () => {
+  assert.match(SQL08_SIN_COMENTARIOS, /where r\.estancia_id = c\.estancia_id and r\.decision = 'no_entrevistar' and z\.fecha < v_fecha\s+order by z\.fecha desc\s+limit 1/);
+  assert.match(SQL08_SIN_COMENTARIOS, /'rojo_anterior', case when rojo\.fecha is not null\s+then jsonb_build_object\('fecha', rojo\.fecha, 'por', rojo\.nombre\) end/);
+  assert.match(SQL08_SIN_COMENTARIOS, /security invoker/);
+  assert.doesNotMatch(SQL08_SIN_COMENTARIOS, /security definer/, 'solo lee: con "invoker" el RLS sigue mandando');
+  assert.match(SQL08_SIN_COMENTARIOS, /if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/);
+  assert.ok(GLOBAL.includes("'rojo_anterior', case when rojo.fecha is not null"), 'y global.sql trae la versión nueva');
+});
+
 test('RN-02 · RN-10 · la base exige una estancia por cédula y fecha, y los 5 datos para "entrevistado"', () => {
   assert.match(SQL, /unique \(cedula, fecha_ingreso\)/);
   assert.match(SQL, /check \(estado <> 'entrevistado' or \(/);

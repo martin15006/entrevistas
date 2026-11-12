@@ -473,6 +473,42 @@ test('RN-08 · en vivo · una decisión no vuelve a quedar "sin decidir", y lo i
   assert.deepEqual(await decidirComo('ana', 999_999_999, 'entrevistar'), { resultado: 'no_existe' });
 });
 
+// --- HU-07 · el rojo anterior (database/08). Censos de junio de 2099, subidos por cuentas tst-. ---
+
+const DIA_DEL_ROJO = '2099-06-01';
+const DIA_SIGUIENTE = '2099-06-02';
+
+test('HU-07.1 · HU-07.2 · HU-07.3 · en vivo · el rojo anterior de la misma estancia vuelve con su aviso; otra estancia no', { skip: saltar }, async () => {
+  const cedula = cedulaInventada();
+  const conCedula = (ingreso, nombre, dias, orden) => ({
+    cedula, fecha_ingreso: ingreso, nombre, nombre_busqueda: nombre.toLowerCase(), piso: 'UCI', cama: `${orden} (Hombre)`, dias, orden,
+  });
+
+  // El primer día, Beto lo marca en rojo.
+  fila(await cuentas.beto.cliente.rpc('guardar_censo', { p_fecha: DIA_DEL_ROJO, p_filas: [conCedula(DIA_DEL_ROJO, 'TST ROJO UNO', 0, 2)] }));
+  const primero = fila(await cuentas.beto.cliente.rpc('revision_del_censo', { p_fecha: DIA_DEL_ROJO }));
+  assert.equal(primero.candidatos[0].rojo_anterior, null, 'en su propio censo no hay rojo ANTERIOR');
+  assert.deepEqual(await decidirComo('beto', primero.candidatos[0].id, 'no_entrevistar'), { resultado: 'ok' });
+
+  // Al otro día vuelve la misma estancia (día 1), y la misma cédula con OTRA fecha de ingreso.
+  fila(await cuentas.ana.cliente.rpc('guardar_censo', {
+    p_fecha: DIA_SIGUIENTE,
+    p_filas: [conCedula(DIA_DEL_ROJO, 'TST ROJO UNO', 1, 2), conCedula(DIA_SIGUIENTE, 'TST ROJO OTRA', 0, 3)],
+  }));
+  const segundo = fila(await cuentas.ana.cliente.rpc('revision_del_censo', { p_fecha: DIA_SIGUIENTE }));
+  const [misma, otra] = segundo.candidatos;
+  assert.deepEqual([misma.nombre, misma.cedula, otra.cedula], ['TST ROJO UNO', cedula, cedula]);
+  assert.equal(misma.por_revisar, true, 'RN-04: el rojo anterior vuelve a "Por revisar"');
+  assert.deepEqual(misma.rojo_anterior, { fecha: DIA_DEL_ROJO, por: 'TST BETO PRUEBA' }, 'HU-07.1: la fecha de ESE censo y quién');
+  assert.equal(otra.por_revisar, true);
+  assert.equal(otra.rojo_anterior, null, 'HU-07.3: otra estancia, sin aviso');
+
+  // HU-07.2 · Con el aviso, "Entrevistar" funciona igual que en HU-06.
+  assert.deepEqual(await decidirComo('ana', misma.id, 'entrevistar'), { resultado: 'ok' });
+  const [entrevista] = fila(await admin.from('entrevistas').select('estado, candidato_id, creado_por').eq('candidato_id', misma.id));
+  assert.deepEqual([entrevista.estado, entrevista.creado_por], ['pendiente', cuentas.ana.id]);
+});
+
 test('CL-03 · en vivo · al cerrar las sesiones de alguien, sale al instante (no una hora después)', { skip: saltar }, async () => {
   fila(await admin.rpc('cerrar_sesiones', { p_usuario: cuentas.ana.id }));
   // Su token todavía no ha vencido, pero la base ya no la reconoce como cuenta activa.
@@ -585,7 +621,7 @@ test('base · en vivo · la limpieza borra lo de las pruebas automáticas y NO t
   }
   const { count: cuentasTst } = await admin.from('perfiles').select('*', { count: 'exact', head: true }).like('correo', 'tst-%@prueba.test');
   assert.equal(cuentasTst, 0, 'no quedan cuentas tst-');
-  for (const fecha of ['2099-03-01', '2000-03-02', PRIMER_DIA, SEGUNDO_DIA]) { // los censos de las pruebas de HU-04 a HU-06
+  for (const fecha of ['2099-03-01', '2000-03-02', PRIMER_DIA, SEGUNDO_DIA, DIA_DEL_ROJO, DIA_SIGUIENTE]) { // los censos de las pruebas de HU-04 a HU-07
     const { count } = await admin.from('censos').select('*', { count: 'exact', head: true }).eq('fecha', fecha);
     assert.equal(count, 0, `el censo de prueba del ${fecha} se borró`);
   }

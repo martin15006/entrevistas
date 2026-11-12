@@ -36,7 +36,7 @@ test('base · CL-06 · una bomba zip (60 MB de ceros en unos KB) se rechaza sin 
   assert.equal(revisarZip(bomba), false);
   await assert.rejects(leerCenso(bomba), (error) => {
     assert.equal(error.codigo, 'NO_ES_XLSX');
-    assert.equal(error.message, 'El archivo debe ser el censo en Excel (.xlsx).');
+    assert.equal(error.message, 'El archivo debe ser el censo en Excel (.xlsx o .xls).');
     return true;
   });
 });

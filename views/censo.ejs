@@ -5,7 +5,7 @@
              data-mensaje-sin-archivo="<%= locals.mensajes.sinArchivo %>"
              data-mensaje-conexion="<%= locals.mensajes.conexion %>">
       <h1 id="titulo-censo">Subir censo</h1>
-      <p>Elige el censo consolidado en Excel (.xlsx). Antes de guardar vas a ver un resumen.</p>
+      <p>Elige el censo consolidado en Excel (.xlsx o .xls, como lo descarga el sistema). Antes de guardar vas a ver un resumen.</p>
 
       <noscript><p class="aviso aviso--error">Esta pantalla necesita JavaScript activado.</p></noscript>
 
@@ -13,7 +13,7 @@
         <label class="campo">
           <span class="campo__nombre">Archivo del censo</span>
           <input type="file" id="archivo" name="archivo"
-                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+                 accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required>
         </label>
         <button type="submit" id="leer" class="boton boton--ancho">Leer censo</button>
       </form>

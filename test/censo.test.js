@@ -6,11 +6,12 @@ const path = require('node:path');
 const ExcelJS = require('exceljs');
 const { leerCenso, leerCensoParaPruebas, resumirCenso, TAMANO_MAXIMO, LIMITE_FILAS } = require('../lib/censo');
 const { ENCABEZADOS } = require('../scripts/censo-de-prueba');
-const { inventarFilas, escribirCenso } = require('../scripts/censo-de-prueba');
+const { inventarFilas, escribirCenso, escribirCensoXls } = require('../scripts/censo-de-prueba');
 
 // Todos los censos de estas pruebas son inventados (CL-01).
 
-const MENSAJE_NO_XLSX = 'El archivo debe ser el censo en Excel (.xlsx).';
+const MENSAJE_NO_XLSX = 'El archivo debe ser el censo en Excel (.xlsx o .xls).';
+const MENSAJE_XLS_VIEJO = 'Este .xls es de un formato viejo que no se puede leer. Ábrelo en Excel y guárdalo como .xlsx.';
 const MENSAJE_GRANDE = 'El archivo pesa más de 5 MB. El censo normal pesa mucho menos: revisa que sea el archivo correcto.';
 const MENSAJE_SIN_ENCABEZADOS = 'Este archivo no parece el censo consolidado: no encontré las columnas Piso, Cama Asignada, Identificación, Nombre, Fecha Ingreso y Días.';
 
@@ -31,10 +32,12 @@ function fila(datos) {
   };
 }
 
-test('HU-04.3 · un archivo que no es .xlsx se rechaza con el mensaje exacto', async () => {
+test('HU-04.3 · un archivo que no es .xlsx ni .xls se rechaza con el mensaje exacto', async () => {
   await assert.rejects(leerCenso(Buffer.from('hola, esto es un texto')), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
-  // Un .xls viejo empieza con otros bytes (D0 CF 11 E0).
-  await assert.rejects(leerCenso(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
+  // Un .xls que por dentro es una página web (algunos sistemas lo hacen) tampoco es el censo.
+  await assert.rejects(leerCenso(Buffer.from('<html><body><table><tr><td>Piso</td></tr></table></body></html>')), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
+  // Un XML que no es una hoja de Excel.
+  await assert.rejects(leerCenso(Buffer.from('<?xml version="1.0"?><nota>hola</nota>')), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
   // Empieza como .zip pero está roto.
   await assert.rejects(leerCenso(Buffer.from('PK\u0003\u0004 esto no es un zip de verdad')), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
   await assert.rejects(leerCenso('no es un buffer'), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
@@ -259,4 +262,60 @@ test('RNF-01 · un censo de 300 filas se lee en menos de 3 segundos', async () =
   const milisegundos = performance.now() - inicio;
   assert.equal(censo.filas.length, 300);
   assert.ok(milisegundos < 3000, `tardó ${Math.round(milisegundos)} ms`);
+});
+
+// --- Enmienda 4 · el censo en .xls del sistema (un "XML Spreadsheet 2003") ---
+
+test('HU-04.1 · enmienda 4 · el .xls del sistema se lee igual que el .xlsx, también con sus casos borde', async () => {
+  for (const casosBorde of [false, true]) {
+    const filas = inventarFilas({ cantidad: 47, fecha: '2026-11-06', casosBorde });
+    const deXlsx = await leerCenso(await escribirCenso(filas, { fecha: '2026-11-06' }));
+    const deXls = await leerCenso(escribirCensoXls(filas, { fecha: '2026-11-06' }));
+    assert.deepEqual(deXls, deXlsx, `casosBorde: ${casosBorde}`);
+    // Algunos sistemas no escriben las celdas vacías y saltan con ss:Index: da lo mismo.
+    assert.deepEqual(await leerCenso(escribirCensoXls(filas, { fecha: '2026-11-06', saltarVacias: true })), deXlsx);
+  }
+});
+
+test('HU-04.4 · HU-04.5 · el .xls también: encabezados hasta la fila 10 y la fecha de "Generado el"', async () => {
+  const filas = inventarFilas({ cantidad: 5, fecha: '2026-11-06' });
+  const enLa10 = await leerCenso(escribirCensoXls(filas, { filaEncabezados: 10 }));
+  assert.equal(enLa10.filas.length, 5);
+  await assert.rejects(leerCenso(escribirCensoXls(filas, { filaEncabezados: 11 })), rechazaCon('SIN_ENCABEZADOS', MENSAJE_SIN_ENCABEZADOS));
+  assert.equal((await leerCenso(escribirCensoXls(filas, { fecha: '2026-11-05' }))).fecha, '2026-11-05');
+  assert.equal((await leerCenso(escribirCensoXls(filas, { sinFecha: true }))).fecha, null);
+});
+
+test('HU-04.10 · un .xls binario viejo (Excel 97-2003) se rechaza con su propio mensaje', async () => {
+  const firma = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  await assert.rejects(leerCenso(firma), rechazaCon('XLS_VIEJO', MENSAJE_XLS_VIEJO));
+  await assert.rejects(leerCenso(Buffer.concat([firma, Buffer.alloc(512)])), rechazaCon('XLS_VIEJO', MENSAJE_XLS_VIEJO));
+  // Con un byte cambiado ya no es esa firma: es "otro archivo".
+  await assert.rejects(leerCenso(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe0])), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
+});
+
+test('base · CL-06 · un .xls con DOCTYPE (la "bomba" de entidades) se rechaza enseguida', async () => {
+  const bomba = '<?xml version="1.0"?><!DOCTYPE b [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]>'
+    + '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+    + '<Worksheet ss:Name="x"><Table><Row><Cell><Data ss:Type="String">&b;</Data></Cell></Row></Table></Worksheet></Workbook>';
+  const inicio = performance.now();
+  await assert.rejects(leerCenso(Buffer.from(bomba)), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
+  assert.ok(performance.now() - inicio < 3000);
+});
+
+test('base · CL-06 · un .xls con más de 10.000 filas con datos se rechaza; con 10.000 se lee', async () => {
+  // Filas mínimas: 10.000 filas completas en XML pesan más de 5 MB y frenaría antes el tope de tamaño.
+  const corta = { piso: 'U', cama: '1', nombre: 'A', edad: '', admision: '', entidad: '', medicos: '', siniestro: '', consumo: '', dias: 5 };
+  const filas = (cantidad) => Array.from({ length: cantidad }, (_, i) => fila({ ...corta, cedula: `99${String(i).padStart(8, '0')}` }));
+  const conDiezMil = escribirCensoXls(filas(10000 - 3)); // + título, fila 2 y encabezados = 10.000
+  assert.equal((await leerCenso(conDiezMil)).filas.length, 10000 - 3);
+  await assert.rejects(leerCenso(escribirCensoXls(filas(10000 - 2))), rechazaCon('NO_ES_XLSX', MENSAJE_NO_XLSX));
+});
+
+test('RNF-01 · un censo .xls de 300 filas se lee en menos de 3 segundos', async () => {
+  const archivo = escribirCensoXls(inventarFilas({ cantidad: 300 }));
+  const inicio = performance.now();
+  const censo = await leerCenso(archivo);
+  assert.equal(censo.filas.length, 300);
+  assert.ok(performance.now() - inicio < 3000);
 });

@@ -4,8 +4,9 @@
 // Ningún nombre ni cédula sale de un censo de verdad.
 //
 // Uso:  npm run censo-prueba -- [--fecha 2026-11-06] [--filas 47] [--semilla 1]
-//                                [--casos-borde] [--sin-fecha] [--salida ruta.xlsx]
+//                                [--casos-borde] [--sin-fecha] [--formato xlsx|xls] [--salida ruta]
 // Sin --salida, el archivo queda en datos-prueba/ (que no se sube a GitHub).
+// --formato xls escribe el "XML Spreadsheet 2003" que exporta el sistema de la clínica (enmienda 4).
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -126,8 +127,64 @@ async function escribirCenso(filas, { fecha = '2026-11-06', sinFecha = false, fi
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
 
+const escaparXml = (texto) => String(texto)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Una celda del XML 2003, con el tipo que pone el sistema (texto, número o fecha). */
+function celdaXml(valor, indice) {
+  const atributo = indice ? ` ss:Index="${indice}"` : '';
+  if (valor === null || valor === undefined || valor === '') return `<Cell${atributo}/>`;
+  if (valor instanceof Date) return `<Cell${atributo}><Data ss:Type="DateTime">${valor.toISOString().slice(0, 19)}.000</Data></Cell>`;
+  if (typeof valor === 'number') return `<Cell${atributo}><Data ss:Type="Number">${valor}</Data></Cell>`;
+  return `<Cell${atributo}><Data ss:Type="String">${escaparXml(valor)}</Data></Cell>`;
+}
+
+/**
+ * Escribe el censo como lo exporta el sistema de la clínica: un ".xls" que por dentro es un
+ * "XML Spreadsheet 2003" (enmienda 4), con la misma estructura del real: título unido en la
+ * fila 1, la fila 2 vacía y los encabezados en la fila 3.
+ * saltarVacias: en vez de escribir las celdas vacías, salta a la siguiente con ss:Index
+ * (algunos sistemas lo hacen así).
+ */
+function escribirCensoXls(filas, { fecha = '2026-11-06', sinFecha = false, filaEncabezados = 3, saltarVacias = false } = {}) {
+  const [anio, mes, dia] = fecha.split('-');
+  const titulo = sinFecha ? 'Censo Consolidado de Camas' : `Censo Consolidado de Camas - Generado el: ${dia}/${mes}/${anio}`;
+  const fila = (valores) => {
+    let necesitaIndice = false;
+    const celdas = valores.map((valor, i) => {
+      const vacia = valor === null || valor === undefined || valor === '';
+      if (saltarVacias && vacia) { necesitaIndice = true; return ''; }
+      const celda = celdaXml(valor, necesitaIndice ? i + 1 : null);
+      necesitaIndice = false;
+      return celda;
+    });
+    return `   <Row>${celdas.join('')}</Row>`;
+  };
+  const lineas = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<?mso-application progid="Excel.Sheet"?>',
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office"'
+      + ' xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"'
+      + ' xmlns:html="http://www.w3.org/TR/REC-html40">',
+    ' <Styles><Style ss:ID="Default" ss:Name="Normal"/></Styles>',
+    ' <Worksheet ss:Name="Censo Consolidado">',
+    '  <Table>',
+    `   <Row><Cell ss:MergeAcross="11"><Data ss:Type="String">${escaparXml(titulo)}</Data></Cell></Row>`,
+  ];
+  for (let numero = 2; numero < filaEncabezados; numero += 1) lineas.push('   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>');
+  lineas.push(fila(ENCABEZADOS));
+  for (const f of filas) {
+    lineas.push(fila([
+      f.piso, f.cama, f.cedula, f.nombre, f.edad, f.fechaIngreso, f.admision,
+      f.dias, f.entidad, f.medicos, f.siniestro, f.consumo,
+    ]));
+  }
+  lineas.push('  </Table>', ' </Worksheet>', '</Workbook>', '');
+  return Buffer.from(lineas.join('\r\n'), 'utf8');
+}
+
 function leerArgumentos(argv) {
-  const opciones = { fecha: '2026-11-06', filas: 47, semilla: 1, casosBorde: false, sinFecha: false, salida: null };
+  const opciones = { fecha: '2026-11-06', filas: 47, semilla: 1, casosBorde: false, sinFecha: false, formato: 'xlsx', salida: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--fecha') opciones.fecha = argv[++i];
@@ -136,8 +193,10 @@ function leerArgumentos(argv) {
     else if (arg === '--casos-borde') opciones.casosBorde = true;
     else if (arg === '--sin-fecha') opciones.sinFecha = true;
     else if (arg === '--salida') opciones.salida = argv[++i];
+    else if (arg === '--formato') opciones.formato = argv[++i];
     else throw new Error(`No conozco la opción ${arg}`);
   }
+  if (!['xlsx', 'xls'].includes(opciones.formato)) throw new Error('--formato va como xlsx o xls');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(opciones.fecha)) throw new Error('--fecha va como AAAA-MM-DD');
   if (!Number.isInteger(opciones.filas) || opciones.filas < 0) throw new Error('--filas va como un número entero');
   return opciones;
@@ -148,9 +207,10 @@ async function principal() {
   const filas = inventarFilas({
     cantidad: opciones.filas, fecha: opciones.fecha, semilla: opciones.semilla, casosBorde: opciones.casosBorde,
   });
-  const archivo = await escribirCenso(filas, { fecha: opciones.fecha, sinFecha: opciones.sinFecha });
+  const forma = { fecha: opciones.fecha, sinFecha: opciones.sinFecha };
+  const archivo = opciones.formato === 'xls' ? escribirCensoXls(filas, forma) : await escribirCenso(filas, forma);
   const salida = path.resolve(opciones.salida
-    ?? path.join(__dirname, '..', 'datos-prueba', `censo-prueba-${opciones.fecha}.xlsx`));
+    ?? path.join(__dirname, '..', 'datos-prueba', `censo-prueba-${opciones.fecha}.${opciones.formato}`));
   fs.mkdirSync(path.dirname(salida), { recursive: true });
   fs.writeFileSync(salida, archivo);
   console.log(`Censo inventado con ${filas.length} filas en: ${salida}`);
@@ -163,4 +223,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { inventarFilas, escribirCenso, ENCABEZADOS, SERVICIOS };
+module.exports = { inventarFilas, escribirCenso, escribirCensoXls, ENCABEZADOS, SERVICIOS };

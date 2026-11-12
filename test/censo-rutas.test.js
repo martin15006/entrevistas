@@ -10,12 +10,12 @@ const { crearApp } = require('../app');
 const { CONFIG, conServidor } = require('./ayudantes/servidor');
 const { crearSupabaseFalso, crearNavegador } = require('./ayudantes/supabase-falso');
 const { crearBaseFalsa } = require('./ayudantes/datos-falsos');
-const { inventarFilas, escribirCenso } = require('../scripts/censo-de-prueba');
+const { inventarFilas, escribirCenso, escribirCensoXls } = require('../scripts/censo-de-prueba');
 const { leerCenso, TAMANO_MAXIMO } = require('../lib/censo');
 const { armarResumen } = require('../lib/resumen-censo');
 const { esCandidato } = require('../lib/reglas');
 
-const NO_ES_XLSX = 'El archivo debe ser el censo en Excel (.xlsx).';
+const NO_ES_XLSX = 'El archivo debe ser el censo en Excel (.xlsx o .xls).';
 const MUY_GRANDE = 'El archivo pesa más de 5 MB. El censo normal pesa mucho menos: revisa que sea el archivo correcto.';
 const SIN_ENCABEZADOS = 'Este archivo no parece el censo consolidado: no encontré las columnas Piso, Cama Asignada, Identificación, Nombre, Fecha Ingreso y Días.';
 const YA_EXISTE = 'Ya hay un censo del 06/11/2026. Se agregarán solo los pacientes nuevos; lo que ya se revisó se conserva.';
@@ -53,7 +53,9 @@ test('HU-04.1 · "Subir censo" tiene el selector de archivo y el botón "Leer ce
   await conServidor(app, async (base) => {
     const { pagina } = await entrarYAbrirCenso(base);
     assert.ok(pagina.texto.includes('<h1 id="titulo-censo">Subir censo</h1>'));
-    assert.ok(pagina.texto.includes('accept=".xlsx,'));
+    assert.ok(pagina.texto.includes('accept=".xlsx,.xls,'), 'enmienda 4: también el .xls del sistema');
+    assert.ok(pagina.texto.includes('application/vnd.ms-excel'));
+    assert.ok(pagina.texto.includes('(.xlsx o .xls, como lo descarga el sistema)'));
     assert.ok(pagina.texto.includes('>Leer censo</button>'));
     assert.ok(pagina.texto.includes('>Confirmar</button>') && pagina.texto.includes('>Cancelar</button>'));
     assert.ok(pagina.texto.includes('<script src="/js/censo.js" defer></script>'));
@@ -318,5 +320,42 @@ test('RNF-01 · del archivo de 300 filas al resumen en menos de 3 segundos', asy
     assert.equal(respuesta.estado, 200);
     assert.match(json(respuesta).linea, / 300 pacientes /);
     assert.ok(milisegundos < 3000, `tardó ${Math.round(milisegundos)} ms`);
+  });
+});
+
+test('HU-04.1 · HU-04.2 · enmienda 4 · el .xls del sistema da el mismo resumen y se guarda igual', async () => {
+  const { app, base } = preparar();
+  const filas = inventarFilas({ cantidad: 47, fecha: '2026-11-06' });
+  const xlsx = await escribirCenso(filas, { fecha: '2026-11-06' });
+  const xls = escribirCensoXls(filas, { fecha: '2026-11-06' });
+  await conServidor(app, async (servidor) => {
+    const { nav } = await entrarYAbrirCenso(servidor);
+    const resumenXlsx = json(await nav.subir('/censo/leer', xlsx));
+    const respuesta = await nav.subir('/censo/leer', xls);
+    assert.equal(respuesta.estado, 200);
+    assert.deepEqual(json(respuesta), resumenXlsx);
+    assert.equal(base.llamadas.length, 0, 'leer no guarda nada');
+
+    const guardado = json(await nav.subir('/censo/guardar', xls));
+    assert.equal(guardado.redirigir, '/revision?dia=2026-11-06');
+    assert.equal(base.llamadas.length, 1);
+    assert.ok(guardado.agregados > 0);
+  });
+});
+
+test('HU-04.10 · subir un .xls binario viejo da su propio mensaje y no guarda nada', async () => {
+  const { app, base } = preparar();
+  const viejo = Buffer.concat([Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]), Buffer.alloc(1024)]);
+  await conServidor(app, async (servidor) => {
+    const { nav } = await entrarYAbrirCenso(servidor);
+    for (const ruta of ['/censo/leer', '/censo/guardar']) {
+      const respuesta = await nav.subir(ruta, viejo);
+      assert.equal(respuesta.estado, 400, ruta);
+      assert.deepEqual(json(respuesta), {
+        error: 'Este .xls es de un formato viejo que no se puede leer. Ábrelo en Excel y guárdalo como .xlsx.',
+        codigo: 'XLS_VIEJO',
+      });
+    }
+    assert.equal(base.llamadas.length, 0);
   });
 });

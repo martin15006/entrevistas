@@ -7,7 +7,8 @@
 -- numerados que falten (01-esquema.sql, 02-proteger-registros.sql…), en orden.
 --
 -- Es la suma limpia de: 01-esquema.sql + 02-proteger-registros.sql + 03-limpiar-pruebas.sql
--- + 04-limpiar-solo-pruebas-automaticas.sql + 05-guardar-censo.sql + 06-revision.sql (CL-11).
+-- + 04-limpiar-solo-pruebas-automaticas.sql + 05-guardar-censo.sql + 06-revision.sql
+-- + 07-decidir-por-una-sola-puerta.sql + 08-recordar-rojo-anterior.sql (CL-11).
 -- test/sql-global.test.js comprueba que no le falte nada de esos archivos.
 -- =====================================================================
 
@@ -563,7 +564,11 @@ begin
           when despues.fecha is not null then
             jsonb_build_object('decision', despues.decision, 'por', despues.nombre,
                                'en', despues.decidido_en, 'fecha', despues.fecha)
-        end
+        end,
+        -- HU-07 · El rojo más reciente de esta MISMA estancia en un censo ANTERIOR (RN-04),
+        -- con la fecha de ese censo (Martín, 2026-11-12) y quién lo marcó.
+        'rojo_anterior', case when rojo.fecha is not null
+          then jsonb_build_object('fecha', rojo.fecha, 'por', rojo.nombre) end
       ) order by c.orden)
       from public.candidatos c
       join public.estancias e on e.id = c.estancia_id
@@ -585,6 +590,15 @@ begin
         order by z.fecha desc
         limit 1
       ) despues on true
+      left join lateral (
+        select z.fecha, pr.nombre
+        from public.candidatos r
+        join public.censos z on z.id = r.censo_id
+        left join public.perfiles pr on pr.id = r.decidido_por
+        where r.estancia_id = c.estancia_id and r.decision = 'no_entrevistar' and z.fecha < v_fecha
+        order by z.fecha desc
+        limit 1
+      ) rojo on true
       where c.censo_id = v_id
     ), '[]'::jsonb),
 

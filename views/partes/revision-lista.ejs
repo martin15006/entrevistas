@@ -34,6 +34,10 @@
                   <p class="candidato__cama"><%= c.cama %></p>
                   <p class="candidato__nombre"><%= c.nombre %></p>
                   <p class="candidato__detalle"><%= c.cedula %> · <span class="candidato__dia"><%= c.dia %></span></p>
+                  <% if (c.avisoRojo) { %>
+                    <%# HU-07.1 · Ya se marcó en rojo en un censo anterior: se recuerda antes de decidir. %>
+                    <p class="candidato__aviso"><%= c.avisoRojo %></p>
+                  <% } %>
                   <div class="candidato__acciones">
                     <%- include('decidir', { c, decision: 'entrevistar', texto: 'Entrevistar', clase: 'boton--verde', desde: '', dia: r.censo.fecha }) %>
                     <%- include('decidir', { c, decision: 'no_entrevistar', texto: 'No entrevistar', clase: 'boton--rojo', desde: '', dia: r.censo.fecha }) %>

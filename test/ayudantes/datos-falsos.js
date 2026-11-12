@@ -105,12 +105,17 @@ function crearBaseFalsa({ reloj = Date.now } = {}) {
               };
             }
           }
+          // HU-07 (database/08) · El rojo más reciente de la MISMA estancia en un censo anterior.
+          const rojo = todos()
+            .filter(({ censo: z, candidato: r }) => r.clave === c.clave && r.decision === 'no_entrevistar' && z.fecha < censo.fecha)
+            .sort((a, b) => (a.censo.fecha < b.censo.fecha ? 1 : -1))[0];
           resultado.candidatos.push({
             id: c.id, piso: c.piso, cama: c.cama, dias: c.dias, orden: c.orden, cedula: c.cedula, nombre: c.nombre,
             por_revisar: porRevisar(c.clave, censo.fecha, c.decision),
             decision: c.decision, decidido_por: await nombreDe(c.decidido_por), decidido_en: c.decidido_en,
             entrevista_hecha: entrevista?.candidatoId === c.id && entrevista.estado === 'entrevistado',
             otra,
+            rojo_anterior: rojo ? { fecha: rojo.censo.fecha, por: await nombreDe(rojo.candidato.decidido_por) } : null,
           });
         }
         for (const anterior of fechas.filter((f) => f < censo.fecha)) {

@@ -148,3 +148,25 @@ test('base · lo que no es una decisión conocida no se muestra como verde ni ro
   const [c] = r.revisados.grupos[0].candidatos;
   assert.deepEqual([c.icono, c.etiqueta, c.puedeCambiar, c.otroCenso], ['', '', false, null]);
 });
+
+test('HU-07.1 · en "Por revisar", el rojo anterior se recuerda con el texto exacto y la fecha de ese censo', () => {
+  const r = armarRevision(resultado([
+    fila(2, 'UCI', { rojo_anterior: { fecha: '2026-11-08', por: 'ANA PRUEBA' } }),
+    fila(3, 'UCI'),
+  ]));
+  const [conRojo, sinRojo] = r.porRevisar[0].candidatos;
+  assert.equal(conRojo.avisoRojo, 'El 08/11/2026 se marcó como NO entrevistar (por ANA PRUEBA).');
+  assert.equal(sinRojo.avisoRojo, null);
+});
+
+test('HU-07.1 · el recordatorio es solo para "Por revisar", y sin nombre no se rompe', () => {
+  const r = armarRevision(resultado([
+    fila(2, 'UCI', { por_revisar: false, decision: 'entrevistar', decidido_por: 'BETO PRUEBA', decidido_en: '2026-11-10T15:00:00Z', rojo_anterior: { fecha: '2026-11-08', por: 'ANA PRUEBA' } }),
+    fila(3, 'UCI', { rojo_anterior: { fecha: '2026-11-08', por: null } }),
+    fila(4, 'UCI', { rojo_anterior: { fecha: 'no-es-fecha', por: 'ANA PRUEBA' } }),
+  ]));
+  assert.equal(r.revisados.grupos[0].candidatos[0].avisoRojo, null, 'ya decidido aquí: no hace falta recordarlo');
+  const [sinNombre, fechaMala] = r.porRevisar[0].candidatos;
+  assert.equal(sinNombre.avisoRojo, 'El 08/11/2026 se marcó como NO entrevistar (por otra persona).');
+  assert.equal(fechaMala.avisoRojo, null);
+});
