@@ -18,6 +18,6 @@ datos-prueba/
 # Herramientas
 .impeccable/
 
-# Pendiente de decidir al crear el repositorio (pacto, sección 4):
-# si el repositorio es público, se descomenta la línea de abajo.
-# docs/
+# El repositorio es público: los documentos del proyecto (SRS, cláusulas, pacto y diario)
+# se quedan en este PC (decisión de Martín, 2026-11-12; pacto, sección 4).
+docs/
