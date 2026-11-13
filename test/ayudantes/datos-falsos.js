@@ -14,11 +14,16 @@ const { crearDatos } = require('../../lib/datos');
 function crearBaseFalsa({ reloj = Date.now } = {}) {
   const base = {
     censos: new Map(), // fecha → { id, fecha, candidatos: Map(clave de estancia → candidato) }
-    entrevistas: new Map(), // clave de estancia → { candidatoId, estado }
+    // clave de estancia → { id, candidatoId, estado } (+ lo que pongan las pruebas: enCursoPor, enCursoDesde,
+    // entrevistadoPor, entrevistadoEn, salioPor, salioEn).
+    entrevistas: new Map(),
     llamadas: [], // cada guardarCenso: { fecha, filas }
     decisiones: [], // cada decidirCandidato: { id, decision, desde }
     siguienteId: 1,
     siguienteCandidato: 1,
+    // Como en la base, la entrevista tiene su PROPIO id, distinto del de su candidato (solo los verdes
+    // crean entrevista). Empieza en 1001 para que una prueba note si alguien usa uno por el otro (PYA tanda 8).
+    siguienteEntrevista: 1001,
   };
 
   const todos = () => [...base.censos.values()]
@@ -40,7 +45,9 @@ function crearBaseFalsa({ reloj = Date.now } = {}) {
     candidato.decision = decision;
     candidato.decidido_por = por;
     candidato.decidido_en = new Date(reloj()).toISOString();
-    if (decision === 'entrevistar') base.entrevistas.set(candidato.clave, { candidatoId: id, estado: 'pendiente' });
+    if (decision === 'entrevistar') {
+      base.entrevistas.set(candidato.clave, { id: base.siguienteEntrevista++, candidatoId: id, estado: 'pendiente' });
+    }
     else if (base.entrevistas.get(candidato.clave)?.candidatoId === id) base.entrevistas.delete(candidato.clave);
   }
 
@@ -122,6 +129,36 @@ function crearBaseFalsa({ reloj = Date.now } = {}) {
           const pendientes = [...base.censos.get(anterior).candidatos.values()]
             .filter((c) => porRevisar(c.clave, anterior, c.decision)).length;
           if (pendientes > 0) resultado.pendientes.push({ fecha: anterior, pendientes });
+        }
+        return resultado;
+      },
+
+      // Como entrevistas_del_dia() (database/09): todas las pendientes (las más viejas primero) y las
+      // entrevistadas y las que salieron del censo elegido.
+      async entrevistasDelDia(fecha) {
+        const fechas = [...base.censos.keys()].sort().reverse();
+        const elegida = fecha ?? fechas[0] ?? null;
+        const censo = elegida ? base.censos.get(elegida) ?? null : null;
+        const quien = await yo();
+        const todas = [...base.entrevistas.values()].map((e) => ({ e, ...buscar(e.candidatoId) }))
+          .sort((a, b) => (a.censo.fecha === b.censo.fecha ? a.candidato.orden - b.candidato.orden : (a.censo.fecha < b.censo.fecha ? -1 : 1)));
+        const comun = ({ e, candidato: c }) => ({ id: e.id, piso: c.piso, cama: c.cama, cedula: c.cedula, nombre: c.nombre });
+        const resultado = {
+          dias: fechas.slice(0, 60), censo: censo ? { id: censo.id, fecha: censo.fecha } : null,
+          pendientes: [], entrevistados: [], salieron: [],
+        };
+        for (const x of todas) {
+          if (x.e.estado === 'pendiente') {
+            resultado.pendientes.push({
+              ...comun(x), censo_fecha: x.censo.fecha,
+              en_curso_por: await nombreDe(x.e.enCursoPor), en_curso_desde: x.e.enCursoDesde ?? null,
+              en_curso_mio: Boolean(x.e.enCursoPor) && x.e.enCursoPor === quien,
+            });
+          } else if (censo && x.censo.id === censo.id && x.e.estado === 'entrevistado') {
+            resultado.entrevistados.push({ ...comun(x), por: await nombreDe(x.e.entrevistadoPor), en: x.e.entrevistadoEn ?? null });
+          } else if (censo && x.censo.id === censo.id && x.e.estado === 'salio') {
+            resultado.salieron.push({ ...comun(x), por: await nombreDe(x.e.salioPor), en: x.e.salioEn ?? null });
+          }
         }
         return resultado;
       },

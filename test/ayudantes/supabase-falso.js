@@ -64,6 +64,13 @@ function crearSupabaseFalso(cuentas = []) {
         };
         return consulta;
       },
+      // Las funciones de la base (rpc): aquí no hay datos. Las pruebas que los necesitan usan la
+      // base falsa (test/ayudantes/datos-falsos.js); las del login solo necesitan que la pantalla
+      // de inicio (Entrevistas) se vea, aunque esté vacía.
+      async rpc(nombre) {
+        registro.llamadasRpc = (registro.llamadasRpc ?? 0) + 1;
+        return { data: null, error: null, nombre };
+      },
     };
   }
 

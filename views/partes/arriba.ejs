@@ -1,16 +1,22 @@
 <%#
-  Comienzo de toda página. Recibe: titulo, pagina (para marcar el menú) y, si hay sesión,
-  cuenta ({ nombre, rol }). csrf llega solo desde res.locals.
+  Comienzo de toda página. Recibe: titulo, pagina (para marcar el menú), estilos (los archivos de
+  public/css/paginas/ de esa pantalla, sin ".css": CL-12) y, si hay sesión, cuenta ({ nombre, rol }).
+  csrf llega solo desde res.locals.
   CL-05: los datos siempre con la etiqueta que escapa (la del signo igual) y entre comillas;
   nada de scripts ni estilos en línea, por la CSP.
-%>
+-%>
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= locals.titulo || 'Entrevistas' %> · Entrevistas</title>
-  <link rel="stylesheet" href="/css/estilos.css">
+  <%# CL-12: primero lo común, después lo de la pantalla (así la pantalla puede ajustar lo común). %>
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/componentes.css">
+  <% for (const hoja of (locals.estilos || [])) { %>
+  <link rel="stylesheet" href="/css/paginas/<%= hoja %>.css">
+  <% } %>
 </head>
 <body data-csrf="<%= locals.csrf || '' %>">
   <header class="barra">

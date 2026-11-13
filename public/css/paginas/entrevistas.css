@@ -1,0 +1,104 @@
+/* PANTALLA · Entrevistas (HU-08). Solo las clases de views/entrevistas.ejs (CL-12).
+   Los grupos por servicio y el selector de día son componentes (componentes.css). */
+
+.entrevistas {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.entrevistas__saludo {
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+/* HU-08.4 · El aviso de que falta el censo de hoy, con su botón. */
+.entrevistas__censo-de-hoy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.entrevistas__censo-de-hoy p {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* HU-08.1 · Las pestañas: enlaces de 44 px; la abierta, marcada abajo. */
+.pestanas ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--borde);
+  list-style: none;
+}
+
+.pestanas__enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  padding: 0 0.875rem;
+  border-bottom: 3px solid transparent;
+  color: var(--texto-suave);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pestanas__enlace[aria-current="page"] {
+  border-bottom-color: var(--acento);
+  color: var(--texto);
+}
+
+.lista-entrevistas {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cada entrevista. La pendiente es un enlace: se toca entera para abrir su formulario (HU-08.5). */
+.fila-entrevista {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  text-decoration: none;
+  overflow-wrap: anywhere; /* un nombre largo no estira la página de lado (CL-07) */
+}
+
+a.fila-entrevista:hover {
+  border-color: var(--acento);
+}
+
+.fila-entrevista__cama {
+  font-weight: 700;
+}
+
+.fila-entrevista__detalle,
+.fila-entrevista__quien {
+  color: var(--texto-suave);
+}
+
+/* "Desde el [fecha]" (HU-08.2) y "En curso · [nombre]" (HU-08.6): se notan sin tapar la fila. */
+.fila-entrevista__desde,
+.fila-entrevista__en-curso {
+  justify-self: start;
+  margin-top: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radio);
+  background: var(--fondo);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.fila-entrevista__en-curso {
+  border-left: 4px solid var(--acento);
+}

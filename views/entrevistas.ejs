@@ -1,5 +1,78 @@
-<%- include('partes/arriba', { titulo: 'Entrevistas', pagina: 'entrevistas' }) %>
-    <h1>Entrevistas</h1>
-    <p>Hola, <%= locals.cuenta && locals.cuenta.nombre %>.</p>
-    <p class="aviso">Aquí vas a ver las entrevistas pendientes, las hechas y los que salieron. Esta pantalla se construye en una tanda próxima (HU-08).</p>
+<%#
+  HU-08 · Las entrevistas por estado. Recibe: vista (lo que arma lib/entrevistas.js) y cuenta.
+  Las pestañas son enlaces normales (funcionan sin JavaScript). CL-05: todo escapado.
+-%>
+<% const v = locals.vista; -%>
+<%- include('partes/arriba', { titulo: 'Entrevistas', pagina: 'entrevistas', estilos: ['entrevistas'] }) %>
+    <section class="entrevistas" aria-labelledby="titulo-entrevistas">
+      <h1 id="titulo-entrevistas">Entrevistas</h1>
+      <p class="entrevistas__saludo">Hola, <%= locals.cuenta && locals.cuenta.nombre %>.</p>
+
+      <% if (v.avisoCensoDeHoy) { %>
+        <%# HU-08.4 · Falta el censo de hoy (hora de Colombia). %>
+        <div class="aviso entrevistas__censo-de-hoy">
+          <p><%= v.avisoCensoDeHoy %></p>
+          <a class="boton" href="/censo">Subir censo</a>
+        </div>
+      <% } %>
+
+      <%# HU-08.1 · Las pestañas, con "Pendientes" abierta si no se elige otra. %>
+      <nav class="pestanas" aria-label="Estado de las entrevistas">
+        <ul>
+          <% for (const p of v.pestanas) { %>
+            <li><a class="pestanas__enlace" href="<%= p.href %>"<% if (p.activa) { %> aria-current="page"<% } %>><%= p.texto %></a></li>
+          <% } %>
+        </ul>
+      </nav>
+
+      <% if (v.pestana !== 'pendientes' && v.dias.length > 0) { %>
+        <%# HU-08.3 · Elegir otro día. Es un formulario normal: funciona sin JavaScript. %>
+        <form class="selector-dia" method="get" action="/entrevistas">
+          <input type="hidden" name="pestana" value="<%= v.pestana %>">
+          <label class="campo__nombre" for="dia">Día del censo</label>
+          <div class="selector-dia__fila">
+            <select id="dia" name="dia">
+              <% for (const dia of v.dias) { %>
+                <option value="<%= dia.valor %>"<% if (dia.elegido) { %> selected<% } %>><%= dia.texto %></option>
+              <% } %>
+            </select>
+            <button type="submit" class="boton boton--secundario">Ver</button>
+          </div>
+        </form>
+      <% } %>
+
+      <% if (v.mensaje) { %>
+        <p class="aviso"><%= v.mensaje %></p>
+      <% } %>
+
+      <% for (const grupo of v.grupos) { %>
+        <%# RN-09 · Por servicio, en el orden del censo. %>
+        <section class="grupo" aria-label="<%= grupo.titulo %>">
+          <h2 class="grupo__titulo"><%= grupo.titulo %></h2>
+          <ul class="lista-entrevistas">
+            <% for (const e of grupo.candidatos) { %>
+              <li>
+                <% if (v.pestana === 'pendientes') { %>
+                  <%# HU-08.5 · Se toca la fila entera para abrir su formulario (HU-09). %>
+                  <a class="fila-entrevista" href="<%= e.href %>">
+                    <span class="fila-entrevista__cama"><%= e.cama %></span>
+                    <span class="fila-entrevista__nombre"><%= e.nombre %></span>
+                    <span class="fila-entrevista__detalle"><%= e.cedula %></span>
+                    <% if (e.desde) { %><span class="fila-entrevista__desde"><%= e.desde %></span><% } %>
+                    <% if (e.enCurso) { %><span class="fila-entrevista__en-curso"><%= e.enCurso %></span><% } %>
+                  </a>
+                <% } else { %>
+                  <div class="fila-entrevista fila-entrevista--cerrada">
+                    <span class="fila-entrevista__cama"><%= e.cama %></span>
+                    <span class="fila-entrevista__nombre"><%= e.nombre %></span>
+                    <span class="fila-entrevista__detalle"><%= e.cedula %></span>
+                    <% if (e.quien) { %><span class="fila-entrevista__quien"><%= e.quien %></span><% } %>
+                  </div>
+                <% } %>
+              </li>
+            <% } %>
+          </ul>
+        </section>
+      <% } %>
+    </section>
 <%- include('partes/abajo') %>

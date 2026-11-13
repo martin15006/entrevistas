@@ -1,0 +1,120 @@
+/* PANTALLA · Revisión del censo (HU-05 a HU-07). Solo las clases de views/revision.ejs y sus partes
+   (partes/revision-lista.ejs y partes/decidir.ejs) (CL-12). */
+
+/* HU-05 y HU-06 · Revisión por servicio, con verde y rojo. */
+.revision,
+.revision__lista {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.revision__seccion h2,
+.revisados > summary {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.candidatos {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidato {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  overflow-wrap: anywhere; /* un nombre largo no estira la página de lado (CL-07) */
+}
+
+.candidato p {
+  margin: 0;
+}
+
+.candidato__cama {
+  font-weight: 700;
+}
+
+.candidato__detalle {
+  color: var(--texto-suave);
+}
+
+.candidato__dia {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+/* HU-07.1 · El recordatorio de un rojo anterior: se nota, pero no tapa los botones.
+   (Con ".candidato" adelante, para ganarle al "margin: 0" de ".candidato p".) */
+.candidato .candidato__aviso {
+  margin-top: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  border-left: 4px solid var(--peligro);
+  border-radius: 0 var(--radio) var(--radio) 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.candidato__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.candidato__acciones .decidir {
+  flex: 1 1 8rem; /* en el celular, uno al lado del otro */
+  margin: 0;
+}
+
+.decidir {
+  margin: 0.5rem 0 0;
+}
+
+.decidir .boton {
+  width: 100%;
+}
+
+.candidato__decision {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+/* Lo plegado (Ya revisados, Cambiar decisión) se abre con un toque de 44 px. */
+.revisados > summary,
+.cambiar > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--toque);
+  list-style: none;
+  cursor: pointer;
+}
+
+/* La flecha propia muestra que se abre (con display:flex, la del navegador desaparece). */
+.revisados > summary::-webkit-details-marker,
+.cambiar > summary::-webkit-details-marker {
+  display: none;
+}
+
+.revisados > summary::before,
+.cambiar > summary::before {
+  content: "▸";
+  margin-right: 0.5rem;
+}
+
+.revisados[open] > summary::before,
+.cambiar[open] > summary::before {
+  content: "▾";
+}
+
+.cambiar > summary {
+  color: var(--acento);
+  font-weight: 600;
+}

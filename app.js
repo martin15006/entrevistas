@@ -10,6 +10,7 @@ const { crearSesion, requiereRol } = require('./middleware/sesion');
 const { crearRutasDeAcceso } = require('./routes/acceso');
 const { crearRutasDeCenso } = require('./routes/censo');
 const { crearRutasDeRevision } = require('./routes/revision');
+const { crearRutasDeEntrevistas } = require('./routes/entrevistas');
 const { crearClientes } = require('./lib/supabase');
 const { crearDatos } = require('./lib/datos');
 const { registrarError } = require('./lib/registro');
@@ -61,12 +62,9 @@ function crearApp(config, {
   // "/" lleva a Entrevistas (HU-01.1 y HU-01.2).
   app.get('/', (req, res) => res.redirect(303, '/entrevistas'));
 
-  // Provisional hasta HU-08: la pantalla adonde se llega al entrar (HU-01.2).
-  app.get('/entrevistas', (req, res) => {
-    res.render('entrevistas', { cuenta: req.cuenta, pagina: 'entrevistas' });
-  });
-
-  // HU-04: subir el censo. HU-05 (provisional): adonde se llega después de guardarlo.
+  // HU-08: la pantalla adonde se llega al entrar (HU-01.2). HU-04: subir el censo.
+  // HU-05 a HU-07: la revisión.
+  app.use(crearRutasDeEntrevistas({ reloj }));
   app.use(crearRutasDeCenso({ reloj }));
   app.use(crearRutasDeRevision());
 

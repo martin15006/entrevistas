@@ -509,6 +509,72 @@ test('HU-07.1 · HU-07.2 · HU-07.3 · en vivo · el rojo anterior de la misma e
   assert.deepEqual([entrevista.estado, entrevista.creado_por], ['pendiente', cuentas.ana.id]);
 });
 
+// --- HU-08 · entrevistas_del_dia (database/09). Censos de julio de 2099, subidos por cuentas tst-. ---
+
+const DIA_UNO = '2099-07-01';
+const DIA_DOS = '2099-07-02';
+
+test('HU-08.2 · HU-08.3 · HU-08.6 · en vivo · entrevistas_del_dia: pendientes de todos los días, y hechas y salidas del día', { skip: saltar }, async () => {
+  const cedulas = { uno: cedulaInventada(), dos: cedulaInventada(), tres: cedulaInventada(), cuatro: cedulaInventada() };
+  const filaDe = (clave, ingreso, orden) => ({
+    cedula: cedulas[clave], fecha_ingreso: ingreso, nombre: `TST ENTREVISTA ${clave.toUpperCase()}`,
+    nombre_busqueda: `tst entrevista ${clave}`, piso: 'UCI', cama: `${orden} (Hombre)`, dias: 0, orden,
+  });
+  const candidatoDe = async (fecha) => fila(await cuentas.ana.cliente.rpc('revision_del_censo', { p_fecha: fecha })).candidatos;
+
+  // Día uno: UNO queda pendiente (y Beto la abre), DOS queda entrevistada.
+  fila(await cuentas.beto.cliente.rpc('guardar_censo', { p_fecha: DIA_UNO, p_filas: [filaDe('uno', DIA_UNO, 2), filaDe('dos', DIA_UNO, 3)] }));
+  const [uno, dos] = await candidatoDe(DIA_UNO);
+  assert.deepEqual(await decidirComo('ana', uno.id, 'entrevistar'), { resultado: 'ok' });
+  assert.deepEqual(await decidirComo('beto', dos.id, 'entrevistar'), { resultado: 'ok' });
+  fila(await cuentas.beto.cliente.from('entrevistas').update({ en_curso_por: cuentas.beto.id }).eq('candidato_id', uno.id).select('id'));
+  fila(await cuentas.beto.cliente.from('entrevistas').update({
+    estado: 'entrevistado', edad: 30, fecha_accidente: '2099-06-30', lugar: 'TST lugar', tipo_declaracion: 'C/M', relato: 'TST relato',
+  }).eq('candidato_id', dos.id).select('id'));
+
+  // Día dos: TRES queda pendiente y CUATRO sale.
+  fila(await cuentas.ana.cliente.rpc('guardar_censo', { p_fecha: DIA_DOS, p_filas: [filaDe('tres', DIA_DOS, 2), filaDe('cuatro', DIA_DOS, 3)] }));
+  const [tres, cuatro] = await candidatoDe(DIA_DOS);
+  assert.deepEqual(await decidirComo('ana', tres.id, 'entrevistar'), { resultado: 'ok' });
+  assert.deepEqual(await decidirComo('ana', cuatro.id, 'entrevistar'), { resultado: 'ok' });
+  fila(await cuentas.ana.cliente.from('entrevistas').update({ estado: 'salio' }).eq('candidato_id', cuatro.id).select('id'));
+
+  const deAna = fila(await cuentas.ana.cliente.rpc('entrevistas_del_dia', { p_fecha: null }));
+  assert.equal(deAna.censo.fecha, DIA_DOS, 'sin día: el censo más reciente');
+  assert.ok(deAna.dias.indexOf(DIA_DOS) < deAna.dias.indexOf(DIA_UNO));
+  const nuestras = (lista) => lista.filter((e) => Object.values(cedulas).includes(e.cedula));
+  const pendientes = nuestras(deAna.pendientes);
+  assert.deepEqual(pendientes.map((p) => [p.nombre, p.censo_fecha]), [['TST ENTREVISTA UNO', DIA_UNO], ['TST ENTREVISTA TRES', DIA_DOS]], 'de todos los días, las más viejas primero');
+  assert.deepEqual([pendientes[0].piso, pendientes[0].cama], ['UCI', '2 (Hombre)']);
+  // HU-08.5 · El id de la fila (el del enlace al formulario) es el de la ENTREVISTA de esa misma cédula.
+  const [suEntrevista] = fila(await admin.from('entrevistas').select('id, estancia_id').eq('id', pendientes[0].id));
+  const [suEstancia] = fila(await admin.from('estancias').select('cedula').eq('id', suEntrevista.estancia_id));
+  assert.equal(suEstancia.cedula, cedulas.uno);
+  assert.equal(pendientes[0].en_curso_por, 'TST BETO PRUEBA', 'RN-13: la abrió Beto');
+  assert.ok(pendientes[0].en_curso_desde);
+  assert.equal(pendientes[0].en_curso_mio, false, 'para Ana no es suya');
+  assert.equal(pendientes[1].en_curso_por, null);
+
+  assert.deepEqual(nuestras(deAna.entrevistados), [], 'la entrevistada es del día uno, no del dos');
+  const [salio] = nuestras(deAna.salieron);
+  assert.deepEqual([salio.nombre, salio.por], ['TST ENTREVISTA CUATRO', 'TST ANA PRUEBA']);
+  assert.ok(salio.en);
+
+  const delUno = fila(await cuentas.ana.cliente.rpc('entrevistas_del_dia', { p_fecha: DIA_UNO }));
+  const [hecha] = nuestras(delUno.entrevistados);
+  assert.deepEqual([hecha.nombre, hecha.por], ['TST ENTREVISTA DOS', 'TST BETO PRUEBA']);
+  assert.equal(nuestras(delUno.pendientes).length, 2, 'las pendientes no dependen del día elegido');
+
+  const deBeto = fila(await cuentas.beto.cliente.rpc('entrevistas_del_dia', { p_fecha: null }));
+  assert.equal(nuestras(deBeto.pendientes)[0].en_curso_mio, true, 'para Beto sí es suya');
+
+  // CL-03 · Ni una cuenta desactivada ni un visitante.
+  const { error: desactivada } = await cuentas.ceci.cliente.rpc('entrevistas_del_dia', { p_fecha: null });
+  assert.equal(desactivada?.code, '42501');
+  const { error: visitante } = await createClient(URL_SUPABASE, PUBLICABLE, SIN_GUARDAR).rpc('entrevistas_del_dia', { p_fecha: null });
+  assert.ok(visitante, 'un visitante no la puede usar');
+});
+
 test('CL-03 · en vivo · al cerrar las sesiones de alguien, sale al instante (no una hora después)', { skip: saltar }, async () => {
   fila(await admin.rpc('cerrar_sesiones', { p_usuario: cuentas.ana.id }));
   // Su token todavía no ha vencido, pero la base ya no la reconoce como cuenta activa.
@@ -621,7 +687,7 @@ test('base · en vivo · la limpieza borra lo de las pruebas automáticas y NO t
   }
   const { count: cuentasTst } = await admin.from('perfiles').select('*', { count: 'exact', head: true }).like('correo', 'tst-%@prueba.test');
   assert.equal(cuentasTst, 0, 'no quedan cuentas tst-');
-  for (const fecha of ['2099-03-01', '2000-03-02', PRIMER_DIA, SEGUNDO_DIA, DIA_DEL_ROJO, DIA_SIGUIENTE]) { // los censos de las pruebas de HU-04 a HU-07
+  for (const fecha of ['2099-03-01', '2000-03-02', PRIMER_DIA, SEGUNDO_DIA, DIA_DEL_ROJO, DIA_SIGUIENTE, DIA_UNO, DIA_DOS]) { // los censos de las pruebas de HU-04 a HU-08
     const { count } = await admin.from('censos').select('*', { count: 'exact', head: true }).eq('fecha', fecha);
     assert.equal(count, 0, `el censo de prueba del ${fecha} se borró`);
   }

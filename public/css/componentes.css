@@ -1,0 +1,218 @@
+/*
+  COMPONENTES (CL-12): lo que comparten varias pantallas (menú, contenido, botones, formularios y avisos).
+  Se carga después de base.css y antes del archivo de cada pantalla.
+*/
+
+/* Barra de arriba con el menú: en el celular el menú baja a otra línea y se reparte. */
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.25rem var(--espacio);
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borde);
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  font-weight: 700;
+  color: var(--texto);
+  text-decoration: none;
+}
+
+.navegacion ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navegacion form {
+  margin: 0;
+}
+
+.navegacion a,
+.enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radio);
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.navegacion a[aria-current="page"] {
+  background: var(--fondo);
+  font-weight: 600;
+}
+
+.contenido {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--espacio);
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--toque);
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: var(--acento);
+  color: var(--acento-texto);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.boton--secundario {
+  border-color: var(--borde);
+  background: var(--superficie);
+  color: var(--acento);
+}
+
+.boton--ancho {
+  width: 100%;
+}
+
+.formulario {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.campo {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.campo__nombre {
+  font-weight: 600;
+}
+
+.campo input {
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit; /* 16 px: el celular no hace zoom solo al tocar el campo */
+}
+
+.aviso {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+.aviso--error {
+  border-color: var(--peligro);
+  color: var(--peligro);
+}
+
+.aviso--exito {
+  border-color: var(--exito);
+  color: var(--exito);
+}
+
+/* El selector de archivo, del mismo alto que lo demás que se toca. */
+.campo input[type="file"] {
+  padding: 0.5rem 0.75rem;
+}
+
+/* CL-07: las grillas y los campos se achican hasta el ancho del celular. Sin esto, el selector
+   de archivo (que el navegador hace ancho) estiraba la página de lado a 390 px (tanda 4). */
+.formulario,
+.campo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.campo input {
+  width: 100%;
+  min-width: 0;
+}
+
+.campo input:disabled,
+.boton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.acciones .boton {
+  flex: 1 1 9rem; /* en el celular, uno al lado del otro o uno debajo del otro */
+}
+
+.boton--verde {
+  background: var(--exito);
+}
+
+.boton--rojo {
+  background: var(--peligro);
+}
+
+/* Los avisos que deja el JavaScript al decidir: fijos abajo, para verlos sin subir. */
+.aviso--flotante {
+  position: fixed;
+  right: var(--espacio);
+  bottom: calc(var(--espacio) + env(safe-area-inset-bottom, 0px));
+  left: var(--espacio);
+  z-index: 10;
+  max-width: 46rem;
+  margin: 0 auto;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+}
+
+/* El selector de día (Revisión y Entrevistas, HU-05.1 y HU-08.3). */
+.selector-dia {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.selector-dia__fila {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.selector-dia select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--toque);
+  padding: 0 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+}
+
+/* Los grupos por servicio, con su conteo (Revisión y Entrevistas, RN-09). */
+.grupo {
+  margin-bottom: 1rem;
+}
+
+.grupo__titulo {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  color: var(--texto-suave);
+}

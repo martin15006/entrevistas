@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const ejs = require('ejs');
+const { armarEntrevistas } = require('../lib/entrevistas');
 
 const VISTAS = path.join(__dirname, '..', 'views');
 const render = (vista, datos) => ejs.renderFile(path.join(VISTAS, vista), datos);
@@ -18,12 +19,14 @@ function todasLasVistas(carpeta = VISTAS) {
 }
 
 test('CL-03 · HU-02.11 · el usuario normal no ve "Usuarios" en el menú; el administrador sí', async () => {
-  const usuario = await render('entrevistas.ejs', { cuenta: { nombre: 'ANA PRUEBA', rol: 'usuario' }, csrf: 't' });
+  // La pantalla de inicio (Entrevistas, HU-08) vacía: aquí solo importa el menú.
+  const vista = armarEntrevistas(null, { hoy: '2026-11-12', ahora: Date.now() });
+  const usuario = await render('entrevistas.ejs', { cuenta: { nombre: 'ANA PRUEBA', rol: 'usuario' }, csrf: 't', vista });
   assert.ok(usuario.includes('href="/entrevistas"'));
   assert.ok(!usuario.includes('/usuarios'));
   assert.ok(!usuario.includes('Usuarios'));
 
-  const admin = await render('entrevistas.ejs', { cuenta: { nombre: 'LUIS PRUEBA', rol: 'administrador' }, csrf: 't' });
+  const admin = await render('entrevistas.ejs', { cuenta: { nombre: 'LUIS PRUEBA', rol: 'administrador' }, csrf: 't', vista });
   assert.ok(admin.includes('href="/usuarios"'));
 });
 

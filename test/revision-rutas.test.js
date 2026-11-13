@@ -162,7 +162,9 @@ test('HU-06.2 · RN-05 · RN-08 · "Entrevistar" crea la entrevista Pendiente y 
     assert.deepEqual(json(respuesta), { ok: true });
     assert.equal(c.decision, 'entrevistar');
     assert.equal(c.decidido_por, 'id-ana', 'RN-08: a nombre de quien decidió');
-    assert.deepEqual(base.entrevistas.get(c.clave), { candidatoId: c.id, estado: 'pendiente' });
+    const { id: idEntrevista, ...entrevista } = base.entrevistas.get(c.clave);
+    assert.deepEqual(entrevista, { candidatoId: c.id, estado: 'pendiente' });
+    assert.notEqual(idEntrevista, c.id, 'la entrevista tiene su propio id, como en la base');
 
     const { texto } = await nav.get('/revision?dia=2026-11-06');
     assert.ok(texto.includes('<details class="revisados" id="revisados">'), 'HU-05.3: "Ya revisados" llega plegado');

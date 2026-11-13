@@ -1,0 +1,7 @@
+/* PANTALLA · Iniciar sesión (HU-01). Solo las clases de views/login.ejs (CL-12). */
+
+/* Formularios: una columna, campos grandes para el dedo. */
+.acceso {
+  max-width: 24rem;
+  margin: 1rem auto;
+}

@@ -93,7 +93,7 @@ test('RNF-06 · la cookie del token es HttpOnly y SameSite=Lax; Secure solo al p
 
 test('base · cabeceras de seguridad en todas las respuestas; la CSP no deja ejecutar código en línea', async () => {
   await conServidor(app(), async (base) => {
-    for (const ruta of ['/', '/css/estilos.css', '/no-existe']) {
+    for (const ruta of ['/', '/css/base.css', '/css/paginas/revision.css', '/no-existe']) {
       const respuesta = await fetch(`${base}${ruta}`);
       const csp = respuesta.headers.get('content-security-policy');
       assert.ok(csp.includes("script-src 'self'"), ruta);

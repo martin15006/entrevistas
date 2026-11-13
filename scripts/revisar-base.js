@@ -69,15 +69,16 @@ async function principal() {
   if (errorCensoVisitante) bien(`guardar_censo: el visitante no la puede usar (${errorCensoVisitante.code ?? errorCensoVisitante.status})`);
   else mal('guardar_censo: ¡un visitante sin sesión la pudo usar!');
 
-  console.log('\n5. Revisión y verde o rojo: solo cuentas activas');
+  console.log('\n5. Revisión, verde o rojo y entrevistas: solo cuentas activas');
   // Un día lejano y un candidato que no existe: aunque algo fallara, no se decidiría nada de verdad.
   const llamadas = [
     ['revision_del_censo', { p_fecha: '2099-12-31' }],
     ['decidir_candidato', { p_candidato: 0, p_decision: 'entrevistar', p_desde: null }],
+    ['entrevistas_del_dia', { p_fecha: '2099-12-31' }],
   ];
   for (const [funcion, argumentos] of llamadas) {
     const { error: deServidor } = await servidor.rpc(funcion, argumentos);
-    if (deServidor?.code === 'PGRST202') mal(`${funcion}: no existe. ¿Se pegó database/06-revision.sql?`);
+    if (deServidor?.code === 'PGRST202') mal(`${funcion}: no existe. ¿Se pegaron todos los SQL de database/ (ver LEEME.md)?`);
     else if (deServidor?.code === '42501') bien(`${funcion} existe y no responde sin una cuenta activa`);
     else mal(`${funcion}: respondió algo inesperado (${deServidor?.code ?? 'sin error'}).`);
     const { error: deVisitante } = await visitante.rpc(funcion, argumentos);

@@ -313,6 +313,25 @@ test('HU-07.1 · HU-07.3 · RN-04 · el rojo anterior es de la MISMA estancia, d
   assert.ok(GLOBAL.includes("'rojo_anterior', case when rojo.fecha is not null"), 'y global.sql trae la versión nueva');
 });
 
+// --- 09-entrevistas-por-estado.sql (tanda 8). En vivo: test-vivo/. ---
+
+const SQL09 = leer('database', '09-entrevistas-por-estado.sql');
+const SQL09_SIN_COMENTARIOS = SQL09.split('\n').map((linea) => linea.replace(/--.*$/, '')).join('\n');
+
+test('HU-08 · CL-03 · entrevistas_del_dia solo lee, con los permisos de quien llama y solo para cuentas activas', () => {
+  assert.match(SQL09_SIN_COMENTARIOS, /security invoker/);
+  assert.doesNotMatch(SQL09_SIN_COMENTARIOS, /security definer|insert |update |delete /);
+  assert.match(SQL09_SIN_COMENTARIOS, /if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/);
+  assert.ok(SQL09.includes('revoke execute on function public.entrevistas_del_dia(date) from public, anon;'));
+  assert.ok(SQL09.includes('grant execute on function public.entrevistas_del_dia(date) to authenticated;'));
+  // HU-08.2: las pendientes de cualquier censo; HU-08.3: las otras, solo del censo elegido.
+  assert.match(SQL09_SIN_COMENTARIOS, /where i\.estado = 'pendiente'\s+\)/);
+  assert.match(SQL09_SIN_COMENTARIOS, /where i\.estado = 'entrevistado' and c\.censo_id = v_id/);
+  assert.match(SQL09_SIN_COMENTARIOS, /where i\.estado = 'salio' and c\.censo_id = v_id/);
+  assert.match(SQL09_SIN_COMENTARIOS, /'en_curso_mio', coalesce\(i\.en_curso_por = \(select auth\.uid\(\)\), false\)/);
+  assert.ok(GLOBAL.includes('create or replace function public.entrevistas_del_dia(p_fecha date default null)'));
+});
+
 test('RN-02 · RN-10 · la base exige una estancia por cédula y fecha, y los 5 datos para "entrevistado"', () => {
   assert.match(SQL, /unique \(cedula, fecha_ingreso\)/);
   assert.match(SQL, /check \(estado <> 'entrevistado' or \(/);

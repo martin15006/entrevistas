@@ -4,7 +4,7 @@
   CL-05: los datos siempre escapados y los textos para el JavaScript en atributos data-*.
 -%>
 <% const r = locals.revision; -%>
-<%- include('partes/arriba', { titulo: 'Revisión', pagina: 'revision' }) %>
+<%- include('partes/arriba', { titulo: 'Revisión', pagina: 'revision', estilos: ['revision'] }) %>
     <section id="revision" class="revision" aria-labelledby="titulo-revision"
              data-mensaje-listo="<%= locals.mensajes.listo %>"
              data-mensaje-conexion="<%= locals.mensajes.conexion %>">

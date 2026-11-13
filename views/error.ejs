@@ -1,4 +1,4 @@
-<%- include('partes/arriba', { titulo: locals.titulo || 'Aviso', pagina: '' }) %>
+<%- include('partes/arriba', { titulo: locals.titulo || 'Aviso', pagina: '', estilos: ['error'] }) %>
     <h1>Aviso</h1>
     <p class="aviso aviso--error" role="alert"><%= locals.mensaje %></p>
     <p><a class="boton boton--secundario" href="/">Volver al inicio</a></p>

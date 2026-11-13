@@ -1,0 +1,71 @@
+/*
+  BASE (CL-12): lo que vale para TODAS las pantallas: los colores, las letras y los tamaños (variables),
+  el reset, el foco y el movimiento reducido. Lo carga cada página primero.
+
+  Cómo están organizados los estilos (CL-12):
+  - base.css          variables, reset y reglas globales. Un color o un tamaño nuevo se agrega aquí, como
+                      variable, y se usa con var(--nombre) en los demás archivos.
+  - componentes.css   lo que comparten varias pantallas: menú, botones, campos, avisos. Si una clase la
+                      usa más de una pantalla, va aquí, una sola vez.
+  - paginas/<pantalla>.css   lo de UNA pantalla, y solo sus clases (la prueba test/estilos.test.js lo vigila).
+  Cada vista declara su archivo al incluir el encabezado: include('partes/arriba', { …, estilos: ['censo'] }).
+  Una pantalla nueva nace con su archivo en paginas/. Nada de estilos en línea (CL-05, por la CSP).
+
+  Estilos PROVISIONALES (RNF-12): el diseño definitivo se hace al final, con su propia identidad.
+  Primero celular (CL-07): todo funciona desde 360 px sin desplazarse de lado, y lo que se toca mide al
+  menos 44 px de alto.
+*/
+
+:root {
+  --fondo: #f5f6f8;
+  --superficie: #ffffff;
+  --texto: #1c2228;
+  --texto-suave: #56616c;
+  --borde: #d4d9df;
+  --acento: #0b6466;
+  --acento-texto: #ffffff;
+  --peligro: #a8322a;
+  --exito: #1f7340;
+  --radio: 8px;
+  --espacio: 1rem;
+  --toque: 44px;
+
+  color: var(--texto);
+  background: var(--fondo);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-size: 1rem; /* 16 px: así el celular no hace zoom solo al tocar un campo */
+}
+
+h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+/* Algo con el atributo hidden no se ve nunca, aunque su clase diga display:flex. */
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 3px solid var(--acento);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
