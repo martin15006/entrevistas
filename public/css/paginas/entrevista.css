@@ -1,0 +1,177 @@
+/*
+  PANTALLA · Entrevista (HU-09): el formulario de una entrevista, al lado de la cama.
+  Solo clases de views/entrevista.ejs (CL-12). Primero celular (CL-07): desde 360 px, todo lo que
+  se toca mide al menos 44 px. Provisional hasta el pase de diseño (RNF-12).
+*/
+
+.entrevista h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.375rem;
+}
+
+/* HU-09.1 · Los datos del paciente, fijos arriba. */
+.paciente {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+.paciente__dato {
+  min-width: 0;
+}
+
+.paciente__dato--ancho {
+  grid-column: 1 / -1;
+}
+
+.paciente dt {
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+}
+
+.paciente dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.entrevista__en-curso p {
+  margin: 0 0 0.75rem;
+}
+
+.entrevista__entrar {
+  margin: 0;
+}
+
+.entrevista__formulario textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit; /* 16 px: el celular no hace zoom solo al tocar el campo */
+  resize: vertical;
+}
+
+/* HU-09.5 · "Falta este dato." bajo su campo. */
+.campo__error {
+  margin: 0;
+  color: var(--peligro);
+  font-weight: 600;
+}
+
+.entrevista__formulario [aria-invalid="true"] {
+  border-color: var(--peligro);
+}
+
+/* HU-09.2 · La declaración: los tipos como botones (por dentro son opciones de radio). */
+.declaracion {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.declaracion__tipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+/* La opción queda en la página (se puede elegir con el teclado) pero no se ve: se ve su botón. */
+.declaracion__opcion {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.declaracion__boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--toque);
+  padding: 0 0.5rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--acento);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.declaracion__opcion:checked + .declaracion__boton {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+
+.declaracion__opcion:focus-visible + .declaracion__boton {
+  outline: 3px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* CB-12 · El contador del relato. */
+.declaracion__contador {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--texto-suave);
+  text-align: right;
+}
+
+/* La placa y su casilla "No sabe" (CB-14), una al lado de la otra. */
+.placa {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.placa input[type="text"] {
+  flex: 1 1 auto;
+}
+
+.placa__no-sabe {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--toque);
+  cursor: pointer;
+}
+
+.placa__no-sabe input {
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+}
+
+/* HU-09.8 · RNF-11 · La pregunta de salir sin guardar, dentro de la página. */
+.entrevista__dialogo {
+  width: min(28rem, calc(100% - 2 * var(--espacio)));
+  padding: 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.entrevista__dialogo::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.entrevista__dialogo p {
+  margin: 0 0 1rem;
+}

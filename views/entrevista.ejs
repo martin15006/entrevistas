@@ -1,0 +1,144 @@
+<%#
+  HU-09 · Llenar la entrevista. Recibe: vista (lo que arma lib/formulario.js) y cuenta.
+  "Guardar entrevista" es un formulario de verdad: sin JavaScript recarga la página; con JavaScript
+  (public/js/entrevista.js) guarda sin perder nada si falla la conexión o la sesión (CB-01, CB-02).
+  CL-05: todo escapado; los textos para el JavaScript van en atributos data-*.
+-%>
+<% const v = locals.vista; -%>
+<%- include('partes/arriba', { titulo: 'Entrevista', pagina: 'entrevistas', estilos: ['entrevista'] }) %>
+    <section class="entrevista" aria-labelledby="titulo-entrevista">
+      <h1 id="titulo-entrevista">Entrevista</h1>
+
+      <%# HU-09.1 · Los datos del paciente, fijos (no son campos: no se pueden cambiar). %>
+      <dl class="paciente">
+        <div class="paciente__dato"><dt>Cama</dt><dd><%= v.paciente.cama %></dd></div>
+        <div class="paciente__dato"><dt>Servicio</dt><dd><%= v.paciente.servicio %></dd></div>
+        <div class="paciente__dato paciente__dato--ancho"><dt>Nombre</dt><dd><%= v.paciente.nombre %></dd></div>
+        <div class="paciente__dato"><dt>Cédula</dt><dd><%= v.paciente.cedula %></dd></div>
+        <% if (v.censo) { %><div class="paciente__dato"><dt>Censo</dt><dd><%= v.censo %></dd></div><% } %>
+      </dl>
+
+      <% if (v.caso === 'cerrada') { %>
+        <p class="aviso"><%= v.mensaje %></p>
+        <p><a class="boton boton--secundario" href="/entrevistas">Volver</a></p>
+      <% } else if (v.caso === 'en_curso') { %>
+        <%# HU-09.9 · RN-13 · Otra persona la abrió hace menos de 15 minutos: no se bloquea, se avisa. %>
+        <div class="aviso entrevista__en-curso" role="alert">
+          <p><%= v.mensaje %></p>
+          <div class="acciones">
+            <a class="boton" href="<%= v.abrirIgual %>">Abrir igual</a>
+            <a class="boton boton--secundario" href="/entrevistas">Volver</a>
+          </div>
+        </div>
+      <% } else { %>
+        <form id="entrevista" class="formulario entrevista__formulario" method="post" action="<%= v.accion %>" novalidate
+              data-id="<%= v.id %>"
+              data-igual="<%= v.igual ? '1' : '' %>"
+              data-mensaje-conexion="<%= v.mensajes.conexion %>">
+          <input type="hidden" name="_csrf" value="<%= locals.csrf || '' %>">
+
+          <p id="aviso-entrevista" class="aviso aviso--error" role="alert"<% if (!v.aviso) { %> hidden<% } %>><%= v.aviso || '' %></p>
+          <%# CB-02 · Si la sesión se cerró: se entra en otra pestaña y se vuelve a guardar. %>
+          <p id="entrar-de-nuevo" class="entrevista__entrar" hidden>
+            <a class="boton boton--secundario" href="/login" target="_blank" rel="noopener">Iniciar sesión</a>
+          </p>
+
+          <%# HU-09.2 · Los campos, en este orden. HU-09.5: cada error va bajo su campo. %>
+          <div class="campo">
+            <label class="campo__nombre" for="edad">Edad</label>
+            <%# HU-09.3 · RNF-10 · Teclado numérico; CB-13: solo números. El largo se mide DESPUÉS de dejar
+                solo los números: así pegar "34 años" o "300 123 4567" no se corta antes (PYA tanda 9). %>
+            <input id="edad" name="edad" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="20" autocomplete="off"
+                   value="<%= v.valores.edad %>" aria-describedby="error-edad"<% if (v.errores.edad) { %> aria-invalid="true"<% } %>>
+            <p id="error-edad" class="campo__error"<% if (!v.errores.edad) { %> hidden<% } %>><%= v.errores.edad || '' %></p>
+          </div>
+
+          <div class="campo">
+            <label class="campo__nombre" for="fecha_accidente">Fecha del accidente</label>
+            <input id="fecha_accidente" name="fecha_accidente" type="date" max="<%= v.hoy %>"
+                   value="<%= v.valores.fecha_accidente %>" aria-describedby="error-fecha_accidente"<% if (v.errores.fecha_accidente) { %> aria-invalid="true"<% } %>>
+            <p id="error-fecha_accidente" class="campo__error"<% if (!v.errores.fecha_accidente) { %> hidden<% } %>><%= v.errores.fecha_accidente || '' %></p>
+          </div>
+
+          <div class="campo">
+            <label class="campo__nombre" for="hora_accidente">Hora del accidente</label>
+            <input id="hora_accidente" name="hora_accidente" type="time" value="<%= v.valores.hora_accidente %>"
+                   aria-describedby="error-hora_accidente">
+            <p id="error-hora_accidente" class="campo__error" hidden></p>
+          </div>
+
+          <div class="campo">
+            <label class="campo__nombre" for="lugar">Lugar del accidente</label>
+            <input id="lugar" name="lugar" type="text" maxlength="<%= v.maximos.lugar %>" autocomplete="off"
+                   value="<%= v.valores.lugar %>" aria-describedby="error-lugar"<% if (v.errores.lugar) { %> aria-invalid="true"<% } %>>
+            <p id="error-lugar" class="campo__error"<% if (!v.errores.lugar) { %> hidden<% } %>><%= v.errores.lugar || '' %></p>
+          </div>
+
+          <div class="campo">
+            <label class="campo__nombre" for="direccion">Dirección de residencia</label>
+            <input id="direccion" name="direccion" type="text" maxlength="<%= v.maximos.direccion %>" autocomplete="off"
+                   value="<%= v.valores.direccion %>" aria-describedby="error-direccion">
+            <p id="error-direccion" class="campo__error" hidden></p>
+          </div>
+
+          <div class="campo">
+            <label class="campo__nombre" for="telefono">Teléfono</label>
+            <input id="telefono" name="telefono" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="20" autocomplete="off"
+                   value="<%= v.valores.telefono %>" aria-describedby="error-telefono"<% if (v.errores.telefono) { %> aria-invalid="true"<% } %>>
+            <p id="error-telefono" class="campo__error"<% if (!v.errores.telefono) { %> hidden<% } %>><%= v.errores.telefono || '' %></p>
+          </div>
+
+          <%# HU-09.2 · La declaración: un botón por tipo (D3) y el relato. %>
+          <fieldset class="declaracion" aria-describedby="error-tipo_declaracion">
+            <legend class="campo__nombre">Declaración</legend>
+            <div class="declaracion__tipos" id="tipo_declaracion">
+              <% for (const tipo of v.tipos) { %>
+                <input class="declaracion__opcion" type="radio" id="<%= tipo.id %>" name="tipo_declaracion" value="<%= tipo.valor %>"<% if (tipo.elegido) { %> checked<% } %>>
+                <label class="declaracion__boton" for="<%= tipo.id %>"><%= tipo.texto %></label>
+              <% } %>
+            </div>
+            <p id="error-tipo_declaracion" class="campo__error"<% if (!v.errores.tipo_declaracion) { %> hidden<% } %>><%= v.errores.tipo_declaracion || '' %></p>
+
+            <div class="campo">
+              <label class="campo__nombre" for="relato">Relato</label>
+              <%# CB-12 · Hasta 500, con su contador. %>
+              <textarea id="relato" name="relato" rows="5" maxlength="<%= v.maximos.relato %>"
+                        aria-describedby="contador-relato error-relato"<% if (v.errores.relato) { %> aria-invalid="true"<% } %>><%= v.valores.relato %></textarea>
+              <p id="contador-relato" class="declaracion__contador" aria-live="polite"><%= v.contador %></p>
+              <p id="error-relato" class="campo__error"<% if (!v.errores.relato) { %> hidden<% } %>><%= v.errores.relato || '' %></p>
+            </div>
+          </fieldset>
+
+          <div class="campo">
+            <label class="campo__nombre" for="placa">Placa</label>
+            <div class="placa">
+              <%# HU-09.7 · Se guarda en mayúsculas y sin espacios (9 por si se escribe con espacio o guion). %>
+              <input id="placa" name="placa" type="text" maxlength="9" autocomplete="off" autocapitalize="characters"
+                     value="<%= v.valores.placa %>" aria-describedby="error-placa"<% if (v.valores.placa_no_sabe) { %> disabled<% } %><% if (v.errores.placa) { %> aria-invalid="true"<% } %>>
+              <%# CB-14 · "No sabe" borra la placa y la bloquea. %>
+              <label class="placa__no-sabe">
+                <input id="placa_no_sabe" name="placa_no_sabe" type="checkbox" value="si"<% if (v.valores.placa_no_sabe) { %> checked<% } %>>
+                No sabe
+              </label>
+            </div>
+            <p id="error-placa" class="campo__error"<% if (!v.errores.placa) { %> hidden<% } %>><%= v.errores.placa || '' %></p>
+          </div>
+
+          <div class="acciones">
+            <%# CB-24 · Mientras guarda, el botón se desactiva. %>
+            <button id="guardar" type="submit" class="boton">Guardar entrevista</button>
+            <a id="volver" class="boton boton--secundario" href="/entrevistas">Volver</a>
+          </div>
+        </form>
+
+        <%# HU-09.8 · RNF-11 · La pregunta va dentro de la página, no en una ventana del navegador. %>
+        <dialog id="salir-sin-guardar" class="entrevista__dialogo" aria-labelledby="texto-salir">
+          <p id="texto-salir"><%= v.mensajes.cambios %></p>
+          <div class="acciones">
+            <button id="seguir-editando" type="button" class="boton">Seguir editando</button>
+            <a id="salir" class="boton boton--secundario" href="/entrevistas">Salir sin guardar</a>
+          </div>
+        </dialog>
+      <% } %>
+    </section>
+<%- include('partes/abajo', { scripts: v.caso === 'formulario' ? ['/js/entrevista.js'] : [] }) %>

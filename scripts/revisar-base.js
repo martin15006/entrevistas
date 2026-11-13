@@ -69,12 +69,18 @@ async function principal() {
   if (errorCensoVisitante) bien(`guardar_censo: el visitante no la puede usar (${errorCensoVisitante.code ?? errorCensoVisitante.status})`);
   else mal('guardar_censo: ¡un visitante sin sesión la pudo usar!');
 
-  console.log('\n5. Revisión, verde o rojo y entrevistas: solo cuentas activas');
-  // Un día lejano y un candidato que no existe: aunque algo fallara, no se decidiría nada de verdad.
+  console.log('\n5. Revisión, verde o rojo, entrevistas y el formulario: solo cuentas activas');
+  // Un día lejano y un candidato o una entrevista que no existen: aunque algo fallara, no se
+  // decidiría ni se guardaría nada de verdad.
   const llamadas = [
     ['revision_del_censo', { p_fecha: '2099-12-31' }],
     ['decidir_candidato', { p_candidato: 0, p_decision: 'entrevistar', p_desde: null }],
     ['entrevistas_del_dia', { p_fecha: '2099-12-31' }],
+    ['ver_entrevista', { p_id: 0 }], // database/10 (HU-09)
+    ['abrir_entrevista', { p_id: 0, p_igual: false }],
+    ['soltar_entrevista', { p_id: 0, p_desde: '2000-01-01T00:00:00Z' }],
+    ['soltar_mis_entrevistas', {}],
+    ['guardar_entrevista', { p_id: 0, p_datos: {} }],
   ];
   for (const [funcion, argumentos] of llamadas) {
     const { error: deServidor } = await servidor.rpc(funcion, argumentos);

@@ -16,7 +16,7 @@ const LARGO_MAXIMO_CONTRASENA = 200;
 // Los avisos que puede mostrar el login según por qué se llegó a él.
 const AVISOS = { inactividad: MENSAJES.inactividad, desactivada: MENSAJES.cuentaDesactivada };
 
-function crearRutasDeAcceso({ clientes, claveFirma, produccion, sesion, reloj = Date.now }) {
+function crearRutasDeAcceso({ clientes, claveFirma, produccion, sesion, reloj = Date.now, fabricaDeDatos = crearDatos }) {
   const rutas = express.Router();
   const freno = crearFreno({ reloj });
 
@@ -95,6 +95,15 @@ function crearRutasDeAcceso({ clientes, claveFirma, produccion, sesion, reloj = 
   rutas.post('/salir', async (req, res) => {
     const supabase = clientes.porPeticion(req, res);
     const { data } = await supabase.auth.getUser(); // para el respaldo, si Supabase falla al cerrar
+    if (data?.user) {
+      // RN-13 · Las entrevistas que tenía abiertas dejan de estar "En curso" (PYA tanda 9): después de
+      // salir, la pantalla ya no puede soltarlas (su token cambió).
+      try {
+        await fabricaDeDatos(supabase).soltarMisEntrevistas();
+      } catch (error) {
+        registrarError('POST /salir · soltar', error); // no frena la salida: a los 15 minutos se sueltan igual
+      }
+    }
     await cerrarSesionLocal(supabase, { clientes, usuarioId: data?.user?.id, req, res });
     sesion.olvidarActividad(res);
     renovarToken(res, { claveFirma, produccion });

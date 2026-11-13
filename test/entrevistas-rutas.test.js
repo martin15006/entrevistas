@@ -99,32 +99,49 @@ test('HU-08.2 · HU-08.5 · las pendientes por servicio, con cama, nombre, cédu
   });
 });
 
-test('HU-08.3 · Entrevistados y Salieron: las del censo más reciente, con selector para elegir otro día', async () => {
+test('HU-08.3 · enmienda 5 · Entrevistados y Salieron: las hechas HOY, cada una con su censo, y el selector de días', async () => {
   const { app, sembrar, verde } = preparar();
   await sembrar('2026-11-05', [paciente(1, 'UCI')]);
   await sembrar('2026-11-06', [paciente(3, 'UCI'), paciente(4, 'UCI'), paciente(5, 'UCI')]);
-  Object.assign(verde('2026-11-05', '992001'), { estado: 'entrevistado', entrevistadoPor: 'id-beto', entrevistadoEn: '2026-11-05T16:00:00Z' });
+  // Del censo del 05/11, pero entrevistada HOY (07/11) a las 08:00 en Colombia.
+  Object.assign(verde('2026-11-05', '992001'), { estado: 'entrevistado', entrevistadoPor: 'id-beto', entrevistadoEn: '2026-11-07T13:00:00Z' });
+  // Del censo del 06/11, entrevistada el 06/11.
   Object.assign(verde('2026-11-06', '992003'), { estado: 'entrevistado', entrevistadoPor: 'id-ana', entrevistadoEn: '2026-11-06T15:30:00Z' });
-  Object.assign(verde('2026-11-06', '992004'), { estado: 'salio', salioPor: 'id-beto', salioEn: '2026-11-06T17:05:00Z' });
+  Object.assign(verde('2026-11-06', '992004'), { estado: 'salio', salioPor: 'id-beto', salioEn: '2026-11-07T14:05:00Z' });
   verde('2026-11-06', '992005'); // sigue pendiente
   await conServidor(app, async (servidor) => {
     const nav = await entrar(servidor);
     const hechas = (await nav.get('/entrevistas?pestana=entrevistados')).texto;
     assert.ok(hechas.includes('<a class="pestanas__enlace" href="/entrevistas?pestana=entrevistados" aria-current="page">Entrevistados</a>'));
     assert.ok(hechas.includes('Pendientes (1)'));
-    assert.ok(hechas.includes('<option value="2026-11-06" selected>06/11/2026</option>'));
+    assert.ok(hechas.includes('<label class="campo__nombre" for="dia">Día</label>'));
+    assert.ok(hechas.includes('<option value="2026-11-07" selected>07/11/2026</option>'), 'al abrir: hoy');
+    assert.ok(hechas.includes('<option value="2026-11-06">06/11/2026</option>'), 'y el día en que se hizo otra');
     assert.ok(hechas.includes('<input type="hidden" name="pestana" value="entrevistados">'));
-    assert.ok(hechas.includes('<span class="fila-entrevista__quien">ANA PRUEBA · 10:30</span>'));
-    assert.ok(!hechas.includes('PACIENTE 1 PRUEBA'), 'la del 05/11 es de otro censo');
+    assert.ok(hechas.includes('<span class="fila-entrevista__quien">Censo del 05/11/2026 · BETO PRUEBA · 08:00</span>'), 'hecha hoy, con su censo');
+    assert.ok(!hechas.includes('PACIENTE 3 PRUEBA'), 'la del 06/11 se hizo otro día');
     assert.ok(!hechas.includes('href="/entrevistas/'), 'las hechas no se abren desde aquí');
 
-    const delCinco = (await nav.get('/entrevistas?pestana=entrevistados&dia=2026-11-05')).texto;
-    assert.ok(delCinco.includes('PACIENTE 1 PRUEBA'));
-    assert.ok(delCinco.includes('<option value="2026-11-05" selected>05/11/2026</option>'));
+    const delSeis = (await nav.get('/entrevistas?pestana=entrevistados&dia=2026-11-06')).texto;
+    assert.ok(delSeis.includes('<span class="fila-entrevista__quien">Censo del 06/11/2026 · ANA PRUEBA · 10:30</span>'));
+    assert.ok(!delSeis.includes('PACIENTE 1 PRUEBA'));
+    assert.ok(delSeis.includes('<option value="2026-11-06" selected>06/11/2026</option>'));
 
     const salieron = (await nav.get('/entrevistas?pestana=salieron')).texto;
-    assert.ok(salieron.includes('<span class="fila-entrevista__quien">BETO PRUEBA · 12:05</span>'));
+    assert.ok(salieron.includes('<span class="fila-entrevista__quien">Censo del 06/11/2026 · BETO PRUEBA · 09:05</span>'));
     assert.ok(!salieron.includes('PACIENTE 3 PRUEBA'));
+  });
+});
+
+test('HU-08.3 · RNF-15 · el día de una entrevista es el de Colombia: a las 23:30 del 06/11 todavía es el 06/11', async () => {
+  const { app, sembrar, verde } = preparar();
+  await sembrar('2026-11-06', [paciente(3, 'UCI')]);
+  // 04:30 del 07/11 en UTC = 23:30 del 06/11 en Colombia.
+  Object.assign(verde('2026-11-06', '992003'), { estado: 'entrevistado', entrevistadoPor: 'id-ana', entrevistadoEn: '2026-11-07T04:30:00Z' });
+  await conServidor(app, async (servidor) => {
+    const nav = await entrar(servidor);
+    assert.ok(!(await nav.get('/entrevistas?pestana=entrevistados')).texto.includes('PACIENTE 3 PRUEBA'), 'no es de hoy (07/11)');
+    assert.ok((await nav.get('/entrevistas?pestana=entrevistados&dia=2026-11-06')).texto.includes('ANA PRUEBA · 23:30'));
   });
 });
 
@@ -176,16 +193,17 @@ test('base · una pestaña o un día raros no rompen nada, y lo vacío tiene su 
     const nav = await entrar(servidor);
     const vacia = await nav.get('/entrevistas');
     assert.ok(vacia.texto.includes('No hay entrevistas pendientes.'));
-    assert.ok((await nav.get('/entrevistas?pestana=entrevistados')).texto.includes('Todavía no hay censos. Sube el primero desde «Censo».'));
+    assert.ok((await nav.get('/entrevistas?pestana=entrevistados')).texto.includes('Todavía no hay entrevistas hechas este día.'), 'aunque no haya censos');
     await sembrar('2026-11-06', []);
     for (const ruta of ['/entrevistas?pestana=<script>', '/entrevistas?pestana=salieron&dia=no-es-fecha', '/entrevistas?pestana[]=x']) {
       const pagina = await nav.get(ruta);
       assert.equal(pagina.estado, 200, ruta);
       assert.ok(!pagina.texto.includes('<script>'), ruta);
     }
-    assert.ok((await nav.get('/entrevistas?pestana=salieron')).texto.includes('Ningún paciente de este censo salió.'));
-    assert.ok((await nav.get('/entrevistas?pestana=entrevistados')).texto.includes('Todavía no hay entrevistas hechas de este censo.'));
-    assert.ok((await nav.get('/entrevistas?pestana=salieron&dia=2026-01-01')).texto.includes('No hay censo del 01/01/2026.'));
+    assert.ok((await nav.get('/entrevistas?pestana=salieron')).texto.includes('Ningún paciente salió este día.'));
+    const otroDia = (await nav.get('/entrevistas?pestana=salieron&dia=2026-01-01')).texto;
+    assert.ok(otroDia.includes('Ningún paciente salió este día.'));
+    assert.ok(otroDia.includes('<option value="2026-01-01" selected>01/01/2026</option>'), 'el día elegido queda en el selector');
   });
 });
 
@@ -193,13 +211,13 @@ test('CL-05 · los nombres salen escapados en "En curso" y en "Entrevistados"', 
   const { app, sembrar, verde } = preparar();
   await sembrar('2026-11-06', [paciente(3, 'UCI'), paciente(4, 'UCI')]);
   Object.assign(verde('2026-11-06', '992003'), { enCursoPor: 'id-raro', enCursoDesde: new Date(AHORA - 60 * 1000).toISOString() });
-  Object.assign(verde('2026-11-06', '992004'), { estado: 'entrevistado', entrevistadoPor: 'id-raro', entrevistadoEn: '2026-11-06T15:30:00Z' });
+  Object.assign(verde('2026-11-06', '992004'), { estado: 'entrevistado', entrevistadoPor: 'id-raro', entrevistadoEn: '2026-11-07T14:00:00Z' });
   await conServidor(app, async (servidor) => {
     const nav = await entrar(servidor);
     const pendientes = (await nav.get('/entrevistas')).texto;
     assert.ok(pendientes.includes('En curso · &lt;img src=x onerror=alert(1)&gt;'));
     const hechas = (await nav.get('/entrevistas?pestana=entrevistados')).texto;
-    assert.ok(hechas.includes('&lt;img src=x onerror=alert(1)&gt; · 10:30'));
+    assert.ok(hechas.includes('&lt;img src=x onerror=alert(1)&gt; · 09:00'));
     assert.ok(!pendientes.includes('<img src=x') && !hechas.includes('<img src=x'));
   });
 });

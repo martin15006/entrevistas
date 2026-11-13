@@ -9,15 +9,13 @@
 // entrevista hecha (CB-11), también si alguien envía el formulario a mano.
 
 const express = require('express');
-const { esFechaIso } = require('../lib/fechas');
+const { esFechaIso, esInstante } = require('../lib/fechas');
 const { armarRevision } = require('../lib/revision');
 const { MENSAJES } = require('../lib/mensajes');
 const { quiereJson, responderError } = require('../middleware/seguridad');
 
 const DECISIONES = new Set(['entrevistar', 'no_entrevistar']);
 const ID = /^[1-9]\d{0,14}$/; // un número entero positivo (los id de la base)
-// La hora de una decisión tal como la da la base: 2026-11-11T15:33:12.123456+00:00 (o con Z).
-const INSTANTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})$/;
 
 function crearRutasDeRevision() {
   const rutas = express.Router();
@@ -46,7 +44,7 @@ function crearRutasDeRevision() {
     const valido = typeof candidato === 'string' && ID.test(candidato)
       && DECISIONES.has(decision)
       && (desde === '' || DECISIONES.has(desde))
-      && (desdeEn === '' || (typeof desdeEn === 'string' && INSTANTE.test(desdeEn)))
+      && (desdeEn === '' || esInstante(desdeEn))
       && (dia === '' || esFechaIso(dia));
     if (!valido) return responderError(req, res, 400, MENSAJES.solicitudMala);
 

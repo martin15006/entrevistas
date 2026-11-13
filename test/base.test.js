@@ -332,6 +332,122 @@ test('HU-08 · CL-03 · entrevistas_del_dia solo lee, con los permisos de quien 
   assert.ok(GLOBAL.includes('create or replace function public.entrevistas_del_dia(p_fecha date default null)'));
 });
 
+// --- 10-llenar-la-entrevista.sql (tanda 9). En vivo: test-vivo/. ---
+
+const SQL10 = leer('database', '10-llenar-la-entrevista.sql');
+const SQL10_SIN_COMENTARIOS = SQL10.split('\n').map((linea) => linea.replace(/--.*$/, '')).join('\n');
+/** El cuerpo de una función de SQL10 (desde su create hasta el $$; que la cierra). */
+const funcion10 = (nombre) => new RegExp(`create or replace function public\\.${nombre}\\([\\s\\S]*?\\$\\$;`).exec(SQL10_SIN_COMENTARIOS)?.[0] ?? '';
+
+test('CL-03 · llenar una entrevista es por una sola puerta: las cuentas no cambian la tabla directo', () => {
+  assert.ok(SQL10.includes('revoke update on public.entrevistas from authenticated;'));
+  assert.ok(GLOBAL.includes('revoke update on public.entrevistas from authenticated;'), 'y global.sql también');
+  for (const nombre of ['abrir_entrevista', 'soltar_entrevista', 'soltar_mis_entrevistas', 'guardar_entrevista']) {
+    const cuerpo = funcion10(nombre);
+    assert.match(cuerpo, /security definer\s+set search_path = ''/, nombre);
+    assert.match(cuerpo, /begin\s+if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/, `${nombre}: lo primero que hace`);
+  }
+  for (const [nombre, firma] of [['ver_entrevista', 'bigint'], ['abrir_entrevista', 'bigint, boolean'], ['soltar_entrevista', 'bigint, timestamptz'],
+    ['soltar_mis_entrevistas', ''], ['guardar_entrevista', 'bigint, jsonb'], ['hoy_colombia', ''], ['en_curso_vigente', 'timestamptz'],
+    ['texto_limpio', 'text, boolean']]) {
+    assert.ok(SQL10.includes(`revoke execute on function public.${nombre}(${firma}) from public, anon;`), nombre);
+    assert.ok(SQL10.includes(`grant execute on function public.${nombre}(${firma}) to authenticated;`), nombre);
+  }
+});
+
+test('CL-03 · PYA tanda 9 · las cuentas no pueden vaciar tablas (truncate no pasa por el RLS ni por los guardias)', () => {
+  const linea = 'revoke truncate, references, trigger on public.perfiles, public.censos, public.estancias, public.candidatos, public.entrevistas from authenticated;';
+  assert.ok(SQL10.includes(linea));
+  assert.ok(GLOBAL.includes(linea), 'y global.sql también');
+});
+
+test('base · PYA tanda 9 · el código no tiene caracteres invisibles (ancho cero, marcas de dirección ni espacios raros)', () => {
+  // Se arma con los códigos en texto, para que esta prueba tampoco tenga ninguno escrito.
+  const codigos = ['00a0', '1680', '2000-200f', '2028-202f', '205f-206f', '3000', 'feff'];
+  const invisible = new RegExp(`[${codigos.map((c) => c.split('-').map((h) => `\\u${h}`).join('-')).join('')}]`, 'u');
+  const raiz = path.join(__dirname, '..');
+  const archivos = [];
+  const recorrer = (carpeta) => {
+    for (const entrada of fs.readdirSync(carpeta, { withFileTypes: true })) {
+      const ruta = path.join(carpeta, entrada.name);
+      if (entrada.isDirectory()) recorrer(ruta);
+      else if (/\.(js|ejs|sql|css)$/.test(entrada.name)) archivos.push(ruta);
+    }
+  };
+  for (const carpeta of ['lib', 'routes', 'middleware', 'views', 'public', 'database', 'scripts', 'test', 'test-vivo']) recorrer(path.join(raiz, carpeta));
+  archivos.push(path.join(raiz, 'app.js'), path.join(raiz, 'server.js'));
+  assert.ok(archivos.length > 40);
+  for (const ruta of archivos) assert.doesNotMatch(fs.readFileSync(ruta, 'utf8'), invisible, path.relative(raiz, ruta));
+  assert.match(`a${String.fromCharCode(0x200b)}b`, invisible, 'y de verdad los nota');
+});
+
+test('HU-09 · CL-03 · ver_entrevista y entrevistas_del_dia solo leen, con los permisos de quien llama', () => {
+  for (const nombre of ['ver_entrevista', 'entrevistas_del_dia']) {
+    const cuerpo = funcion10(nombre);
+    assert.match(cuerpo, /security invoker/, nombre);
+    assert.doesNotMatch(cuerpo, /security definer|insert |update |delete /, nombre);
+    assert.match(cuerpo, /if not \(select public\.es_cuenta_activa\(\)\) then\s+raise exception/, nombre);
+  }
+});
+
+test('RN-13 · CB-27 · un solo reloj: la base dice qué día es hoy en Colombia y si "En curso" sigue (15 minutos)', () => {
+  assert.match(funcion10('hoy_colombia'), /select \(now\(\) at time zone 'America\/Bogota'\)::date/);
+  assert.match(funcion10('en_curso_vigente'), /p_desde is not null and p_desde > now\(\) - interval '15 minutes'/);
+  // Solo se dice quién la está haciendo si es OTRA persona y sigue vigente (lista y formulario).
+  const otraPersona = /case when i\.en_curso_por is distinct from v_yo and public\.en_curso_vigente\(i\.en_curso_desde\)\s+then pc\.nombre end/;
+  assert.match(funcion10('entrevistas_del_dia'), otraPersona);
+  assert.match(funcion10('ver_entrevista'), otraPersona);
+  assert.doesNotMatch(SQL10_SIN_COMENTARIOS, /en_curso_mio/, 'el servidor ya no hace la cuenta con su reloj');
+});
+
+test('RN-13 · al guardarse o marcarse "Salió", la entrevista deja de estar "En curso" (en 10 y en global.sql)', () => {
+  const soltarAlCambiar = /if new\.estado is distinct from old\.estado then\s+new\.en_curso_por := null; new\.en_curso_desde := null;\s+end if;\s+return new;/;
+  assert.match(SQL10_SIN_COMENTARIOS, soltarAlCambiar);
+  assert.match(GLOBAL.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n'), soltarAlCambiar);
+});
+
+test('HU-04.8 · la base tampoco deja crear un censo con fecha posterior a hoy (en 10 y en global.sql)', () => {
+  const tope = /if new\.fecha > public\.hoy_colombia\(\) then\s+raise exception 'La fecha del censo es posterior a hoy'/;
+  assert.match(funcion10('proteger_censo'), tope);
+  assert.match(GLOBAL, tope);
+});
+
+test('HU-08.3 · enmienda 5 · Entrevistados y Salieron son las hechas ESE día en Colombia, cada una con su censo', () => {
+  const cuerpo = funcion10('entrevistas_del_dia');
+  assert.match(cuerpo, /v_desde := v_dia::timestamp at time zone 'America\/Bogota';\s+v_hasta := \(v_dia \+ 1\)::timestamp at time zone 'America\/Bogota';/);
+  assert.match(cuerpo, /where i\.estado = 'entrevistado' and i\.entrevistado_en >= v_desde and i\.entrevistado_en < v_hasta/);
+  assert.match(cuerpo, /where i\.estado = 'salio' and i\.salio_en >= v_desde and i\.salio_en < v_hasta/);
+  assert.match(cuerpo, /where i\.estado = 'pendiente'\s+\)/, 'las pendientes, todas');
+  assert.equal((cuerpo.match(/'censo_fecha', z\.fecha/g) ?? []).length, 3, 'cada lista dice de qué censo es');
+  assert.ok(GLOBAL.includes("where i.estado = 'entrevistado' and i.entrevistado_en >= v_desde and i.entrevistado_en < v_hasta"));
+});
+
+test('CB-17 · RN-10 · guardar aparta la entrevista, no pisa una ya guardada y la base revisa la fecha', () => {
+  const cuerpo = funcion10('guardar_entrevista');
+  assert.match(cuerpo, /from public\.entrevistas where id = p_id\s+for update;\s+if not found then/);
+  // CB-24 · El mismo guardado otra vez es un ok solo si los datos son LOS MISMOS (PYA tanda 9).
+  assert.match(cuerpo, /is not distinct from \(v_edad, v_fecha, v_hora, v_lugar, v_direccion, v_telefono, v_tipo, v_relato, v_placa, v_no_sabe\)/);
+  assert.match(cuerpo, /if v_estado = 'entrevistado' then\s+if v_entrevistado_por = v_yo and v_igual then/);
+  assert.match(cuerpo, /'ya_entrevistado'/);
+  assert.match(cuerpo, /if v_estado = 'salio' then/);
+  assert.match(cuerpo, /if v_fecha > public\.hoy_colombia\(\) then\s+raise exception/);
+  assert.match(cuerpo, /set\s+estado = 'entrevistado',/);
+  // RN-10 · La base limpia el texto como el servidor: un lugar o un relato invisibles no cuentan.
+  assert.match(cuerpo, /v_lugar := public\.texto_limpio\(p_datos ->> 'lugar'\);/);
+  assert.match(cuerpo, /v_direccion := public\.texto_limpio\(p_datos ->> 'direccion'\);/);
+  assert.match(cuerpo, /v_relato := public\.texto_limpio\(p_datos ->> 'relato', true\);/);
+  assert.doesNotMatch(cuerpo, /btrim/);
+});
+
+test('RN-13 · HU-09.9 · abrir no le quita a otra persona su "En curso" sin "Abrir igual"; soltar, solo MI apertura', () => {
+  const abrir = funcion10('abrir_entrevista');
+  assert.match(abrir, /if v_estado <> 'pendiente' then/);
+  assert.match(abrir, /if not coalesce\(p_igual, false\) and v_por is distinct from v_yo and public\.en_curso_vigente\(v_desde\) then\s+return jsonb_build_object\('resultado', 'en_curso'/);
+  assert.match(abrir, /return jsonb_build_object\('resultado', 'ok', 'desde', now\(\)\);/);
+  assert.match(funcion10('soltar_entrevista'), /where id = p_id and en_curso_por = \(select auth\.uid\(\)\) and en_curso_desde = p_desde;/);
+  assert.match(funcion10('soltar_mis_entrevistas'), /where en_curso_por = \(select auth\.uid\(\)\) and estado = 'pendiente';/);
+});
+
 test('RN-02 · RN-10 · la base exige una estancia por cédula y fecha, y los 5 datos para "entrevistado"', () => {
   assert.match(SQL, /unique \(cedula, fecha_ingreso\)/);
   assert.match(SQL, /check \(estado <> 'entrevistado' or \(/);

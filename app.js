@@ -11,6 +11,7 @@ const { crearRutasDeAcceso } = require('./routes/acceso');
 const { crearRutasDeCenso } = require('./routes/censo');
 const { crearRutasDeRevision } = require('./routes/revision');
 const { crearRutasDeEntrevistas } = require('./routes/entrevistas');
+const { crearRutasDeFormulario } = require('./routes/formulario');
 const { crearClientes } = require('./lib/supabase');
 const { crearDatos } = require('./lib/datos');
 const { registrarError } = require('./lib/registro');
@@ -50,7 +51,7 @@ function crearApp(config, {
   const { requiereSesion } = sesion;
 
   // --- Lo único público: entrar y salir (HU-01) ---
-  app.use(crearRutasDeAcceso({ clientes, claveFirma, produccion, sesion, reloj }));
+  app.use(crearRutasDeAcceso({ clientes, claveFirma, produccion, sesion, reloj, fabricaDeDatos }));
 
   // Rutas que agregan las pruebas para probar la seguridad común (nunca en el servidor real).
   if (montarRutas) montarRutas(app, { requiereSesion, requiereRol });
@@ -62,9 +63,10 @@ function crearApp(config, {
   // "/" lleva a Entrevistas (HU-01.1 y HU-01.2).
   app.get('/', (req, res) => res.redirect(303, '/entrevistas'));
 
-  // HU-08: la pantalla adonde se llega al entrar (HU-01.2). HU-04: subir el censo.
-  // HU-05 a HU-07: la revisión.
+  // HU-08: la pantalla adonde se llega al entrar (HU-01.2). HU-09: llenar una entrevista.
+  // HU-04: subir el censo. HU-05 a HU-07: la revisión.
   app.use(crearRutasDeEntrevistas({ reloj }));
+  app.use(crearRutasDeFormulario({ reloj }));
   app.use(crearRutasDeCenso({ reloj }));
   app.use(crearRutasDeRevision());
 

@@ -8,6 +8,11 @@
       <h1 id="titulo-entrevistas">Entrevistas</h1>
       <p class="entrevistas__saludo">Hola, <%= locals.cuenta && locals.cuenta.nombre %>.</p>
 
+      <% if (v.guardada) { %>
+        <%# HU-09.4 · Se vuelve aquí después de guardar una entrevista. %>
+        <p class="aviso aviso--exito" role="status"><%= v.guardada %></p>
+      <% } %>
+
       <% if (v.avisoCensoDeHoy) { %>
         <%# HU-08.4 · Falta el censo de hoy (hora de Colombia). %>
         <div class="aviso entrevistas__censo-de-hoy">
@@ -26,10 +31,10 @@
       </nav>
 
       <% if (v.pestana !== 'pendientes' && v.dias.length > 0) { %>
-        <%# HU-08.3 · Elegir otro día. Es un formulario normal: funciona sin JavaScript. %>
+        <%# HU-08.3 (enmienda 5) · Elegir otro día de trabajo. Es un formulario normal: funciona sin JavaScript. %>
         <form class="selector-dia" method="get" action="/entrevistas">
           <input type="hidden" name="pestana" value="<%= v.pestana %>">
-          <label class="campo__nombre" for="dia">Día del censo</label>
+          <label class="campo__nombre" for="dia">Día</label>
           <div class="selector-dia__fila">
             <select id="dia" name="dia">
               <% for (const dia of v.dias) { %>
